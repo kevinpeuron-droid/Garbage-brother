@@ -2,9 +2,24 @@ import React, { useState, useEffect } from "react";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
 import SettingsView from "./components/SettingsView";
-import { TrashBin, MapShape, BinTypeConfig, defaultBinTypes } from "./types";
+import HoursView from "./components/HoursView";
+import {
+  TrashBin,
+  MapShape,
+  BinTypeConfig,
+  defaultBinTypes,
+  WorkSession,
+} from "./types";
 import { mockBins } from "./data";
-import { Trash2, Map, List, Settings, Share2, Check } from "lucide-react";
+import {
+  Trash2,
+  Map,
+  List,
+  Settings,
+  Share2,
+  Check,
+  Clock,
+} from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
 type ViewMode =
@@ -12,7 +27,8 @@ type ViewMode =
   | "map_depose"
   | "map_exploitation"
   | "list"
-  | "settings";
+  | "settings"
+  | "hours";
 
 export default function App() {
   const [bins, setBins] = useState<TrashBin[]>(() => {
@@ -28,6 +44,11 @@ export default function App() {
   const [binTypes, setBinTypes] = useState<BinTypeConfig[]>(() => {
     const saved = localStorage.getItem("vcp-types");
     return saved ? JSON.parse(saved) : defaultBinTypes;
+  });
+
+  const [sessions, setSessions] = useState<WorkSession[]>(() => {
+    const saved = localStorage.getItem("vcp-sessions");
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [viewMode, setViewMode] = useState<ViewMode>("map_pose");
@@ -66,6 +87,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("vcp-types", JSON.stringify(binTypes));
   }, [binTypes]);
+
+  useEffect(() => {
+    localStorage.setItem("vcp-sessions", JSON.stringify(sessions));
+  }, [sessions]);
 
   const updateBinStatus = (id: string, status: TrashBin["status"]) => {
     setBins((prev) =>
@@ -166,8 +191,8 @@ export default function App() {
               <Trash2 size={24} />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-center text-[#3C413A] mb-2">
-            VC GREEN
+          <h1 className="text-2xl font-bold text-center text-[#3C413A] mb-2 flex items-baseline justify-center gap-2">
+            Big Garbage <span className="text-sm italic font-normal text-[#7A8275]">is cleaning you</span>
           </h1>
           <p className="text-center text-[#7A8275] mb-8 font-medium">
             Accès Acteur Externe
@@ -204,6 +229,20 @@ export default function App() {
     );
   }
 
+  const handleAddSession = (session: WorkSession) => {
+    setSessions((prev) => [...prev, session]);
+  };
+
+  const handleDeleteSession = (id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleUpdateSession = (id: string, updates: Partial<WorkSession>) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+    );
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
       <header className="h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-6 z-20 relative">
@@ -211,8 +250,8 @@ export default function App() {
           <div className="w-8 h-8 bg-[#6B8E63] rounded-lg flex items-center justify-center text-white">
             <Trash2 size={18} />
           </div>
-          <span className="font-bold text-lg tracking-tight hidden md:block">
-            VC GREEN
+          <span className="font-bold text-lg tracking-tight hidden md:flex items-baseline gap-2">
+            Big Garbage <span className="text-sm italic font-normal text-[#7A8275]">is cleaning you</span>
           </span>
         </div>
 
@@ -242,6 +281,12 @@ export default function App() {
                 className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
               >
                 <List size={16} /> Liste / Import
+              </button>
+              <button
+                onClick={() => setViewMode("hours")}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "hours" ? "bg-[#916738] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+              >
+                <Clock size={16} /> Mes Heures
               </button>
               <button
                 onClick={() => setViewMode("settings")}
@@ -300,6 +345,15 @@ export default function App() {
             onImportBins={handleImportBins}
             onStartPlacing={handleStartPlacing}
             onDeleteBin={handleDeleteBin}
+          />
+        )}
+
+        {viewMode === "hours" && (
+          <HoursView
+            sessions={sessions}
+            onAddSession={handleAddSession}
+            onDeleteSession={handleDeleteSession}
+            onUpdateSession={handleUpdateSession}
           />
         )}
 

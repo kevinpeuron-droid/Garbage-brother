@@ -28,6 +28,26 @@ export interface TrashBin {
   count?: number;
 }
 
+export type EquipmentType = 'tracteur_perso' | 'tracteur_charrue' | 'tracteur_erwan_plateau' | 'autre';
+
+export interface WorkSession {
+  id: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  mission: string;
+  equipment: EquipmentType;
+  customEquipment?: string;
+  hourlyRate: number;
+}
+
+export const defaultEquipmentRates: Record<EquipmentType, number> = {
+  tracteur_perso: 50,
+  tracteur_charrue: 60,
+  tracteur_erwan_plateau: 70,
+  autre: 0,
+};
+
 export interface MapShape {
   id: string;
   name: string;
