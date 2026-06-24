@@ -159,7 +159,8 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
           >
             <Popup>
               <div className="p-1 min-w-[200px] text-[#3C413A] font-sans">
-                <h3 className="font-bold text-sm mb-1 text-[#4B6345]">{bin.name} {bin.count && bin.count > 1 ? `(${bin.count} poubelles)` : ''}</h3>
+                <h3 className="font-bold text-sm mb-1 text-[#4B6345]">{bin.name}</h3>
+                <p className="text-xs text-[#7A8275] mb-1 font-medium">Nombre: {bin.count || 1}</p>
                 <p className="text-xs text-[#7A8275] mb-1 font-medium">Zone: {bin.zone}</p>
                 {typeConfig && <p className="text-xs font-bold mb-3" style={{ color: typeConfig.color }}>Type: {typeConfig.label}</p>}
                 
