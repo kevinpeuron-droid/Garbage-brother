@@ -40,7 +40,7 @@ interface BinMapProps {
   bins: TrashBin[];
   shapes: MapShape[];
   binTypes: BinTypeConfig[];
-  mode: 'map_pose' | 'map_depose';
+  mode: 'map_pose' | 'map_depose' | 'map_exploitation';
   onUpdateStatus: (id: string, status: TrashBin['status']) => void;
   onShapesChange: (shapes: MapShape[]) => void;
   selectedBinId: string | null;
@@ -57,6 +57,9 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
     }
     if (mode === 'map_depose') {
       return ['installed', 'to_remove', 'removed', 'overflowing'].includes(b.status);
+    }
+    if (mode === 'map_exploitation') {
+      return ['installed', 'overflowing'].includes(b.status);
     }
     return true;
   });
@@ -145,26 +148,35 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                       <>
                         <button onClick={() => onUpdateStatus(bin.id, 'to_install')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'to_install' ? 'bg-[#A08E78] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>À poser</button>
                         <button onClick={() => onUpdateStatus(bin.id, 'installed')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'installed' ? 'bg-[#6B8E63] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>Posée</button>
+                        <button onClick={() => onUpdateStatus(bin.id, 'overflowing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' : 'bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]'}`}>🚨 Archi pleine</button>
                       </>
                     )}
                     {mode === 'map_depose' && (
                       <>
                         <button onClick={() => onUpdateStatus(bin.id, 'to_remove')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'to_remove' ? 'bg-[#D4A373] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>À retirer</button>
                         <button onClick={() => onUpdateStatus(bin.id, 'removed')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'removed' ? 'bg-[#D9D3C7] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>Retirée</button>
+                        <button onClick={() => onUpdateStatus(bin.id, 'overflowing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' : 'bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]'}`}>🚨 Archi pleine</button>
                       </>
                     )}
-                    <button onClick={() => onUpdateStatus(bin.id, 'overflowing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' : 'bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]'}`}>🚨 Archi pleine (Urgence)</button>
+                    {mode === 'map_exploitation' && (
+                      <>
+                        <button onClick={() => onUpdateStatus(bin.id, 'installed')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'installed' ? 'bg-[#6B8E63] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>✅ Vidée</button>
+                        <button onClick={() => onUpdateStatus(bin.id, 'overflowing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' : 'bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]'}`}>🚨 Archi pleine</button>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="text-[10px] text-[#A08E78] pt-2 pb-2 border-t border-[#E5E0D5]">
                   Dernière collecte: {new Date(bin.lastEmptied).toLocaleTimeString()}
                 </div>
-                <button 
-                  onClick={() => onDeleteBin(bin.id)} 
-                  className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#F4F1EA] text-[#916738] border border-[#D9D3C7] hover:bg-[#D9D3C7]"
-                >
-                  Supprimer du plan
-                </button>
+                {mode !== 'map_exploitation' && (
+                  <button 
+                    onClick={() => onDeleteBin(bin.id)} 
+                    className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#F4F1EA] text-[#916738] border border-[#D9D3C7] hover:bg-[#D9D3C7]"
+                  >
+                    Supprimer du plan
+                  </button>
+                )}
               </div>
             </Popup>
           </Marker>

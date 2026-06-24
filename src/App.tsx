@@ -7,7 +7,7 @@ import { mockBins } from './data';
 import { Trash2, Map, List, Settings } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
-type ViewMode = 'map_pose' | 'map_depose' | 'list' | 'settings';
+type ViewMode = 'map_pose' | 'map_depose' | 'map_exploitation' | 'list' | 'settings';
 
 export default function App() {
   const [bins, setBins] = useState<TrashBin[]>(() => {
@@ -119,28 +119,34 @@ export default function App() {
           <span className="font-bold text-lg tracking-tight hidden md:block">VC GREEN</span>
         </div>
         
-        <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-[#E5E0D5]">
+        <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-[#E5E0D5] overflow-x-auto">
           <button 
             onClick={() => setViewMode('map_pose')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'map_pose' ? 'bg-[#6B8E63] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'map_pose' ? 'bg-[#6B8E63] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
           >
             <Map size={16} /> Mode Pose
           </button>
           <button 
             onClick={() => setViewMode('map_depose')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'map_depose' ? 'bg-[#D4A373] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'map_depose' ? 'bg-[#D4A373] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
           >
             <Map size={16} /> Mode Dépose
           </button>
           <button 
+            onClick={() => setViewMode('map_exploitation')}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'map_exploitation' ? 'bg-[#DC2626] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
+          >
+            <Map size={16} /> Mode Exploitation
+          </button>
+          <button 
             onClick={() => setViewMode('list')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'list' ? 'bg-[#4B6345] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'list' ? 'bg-[#4B6345] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
           >
             <List size={16} /> Liste / Import
           </button>
           <button 
             onClick={() => setViewMode('settings')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'settings' ? 'bg-[#7A8275] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === 'settings' ? 'bg-[#7A8275] text-white' : 'text-[#7A8275] hover:bg-[#F4F1EA]'}`}
           >
             <Settings size={16} />
           </button>
@@ -154,7 +160,7 @@ export default function App() {
       </header>
       
       <main className="flex-1 flex overflow-hidden relative">
-        {(viewMode === 'map_pose' || viewMode === 'map_depose') && (
+        {(viewMode === 'map_pose' || viewMode === 'map_depose' || viewMode === 'map_exploitation') && (
           <div className="flex-1 relative z-0">
             <BinMap 
               bins={bins}
