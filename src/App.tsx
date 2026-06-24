@@ -245,7 +245,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
-      <header className="h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-6 z-20 relative">
+      <header className="h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-6 z-20 relative print:hidden">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-[#6B8E63] rounded-lg flex items-center justify-center text-white">
             <Trash2 size={18} />

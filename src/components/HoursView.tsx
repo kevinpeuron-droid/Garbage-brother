@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { WorkSession, EquipmentType, defaultEquipmentRates } from "../types";
-import { Plus, Trash2, Clock, Calculator, Settings2 } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Clock,
+  Calculator,
+  Settings2,
+  FileText,
+} from "lucide-react";
+import ReportModal from "./ReportModal";
 
 interface HoursViewProps {
   sessions: WorkSession[];
@@ -23,6 +31,7 @@ export default function HoursView({
   onUpdateSession,
 }: HoursViewProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const [rates, setRates] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem("vcp-rates");
@@ -105,7 +114,7 @@ export default function HoursView({
 
   return (
     <div className="flex-1 overflow-auto bg-[#F4F1EA] p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6 print:hidden">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-[#3C413A]">Mes Heures</h1>
@@ -113,12 +122,20 @@ export default function HoursView({
               Récapitulatif de vos missions et temps de travail
             </p>
           </div>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold shadow-sm transition-colors ${showSettings ? "bg-[#7A8275] text-white" : "bg-white text-[#4B6345] border border-[#E5E0D5] hover:bg-[#F9F8F6]"}`}
-          >
-            <Settings2 size={18} /> Paramètres
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-[#4B6345] border border-[#E5E0D5] rounded-lg font-bold shadow-sm hover:bg-[#F9F8F6] transition-colors"
+            >
+              <FileText size={18} /> Éditer un Récapitulatif
+            </button>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold shadow-sm transition-colors ${showSettings ? "bg-[#7A8275] text-white" : "bg-white text-[#4B6345] border border-[#E5E0D5] hover:bg-[#F9F8F6]"}`}
+            >
+              <Settings2 size={18} /> Paramètres
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -420,6 +437,14 @@ export default function HoursView({
           </div>
         </div>
       </div>
+
+      {showReportModal && (
+        <ReportModal
+          sessions={sessions}
+          onClose={() => setShowReportModal(false)}
+          equipmentOptions={equipmentOptions}
+        />
+      )}
     </div>
   );
 }

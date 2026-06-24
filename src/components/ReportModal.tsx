@@ -1,0 +1,282 @@
+import React, { useState } from "react";
+import { WorkSession, EquipmentType } from "../types";
+import { Printer, X } from "lucide-react";
+
+interface ReportModalProps {
+  sessions: WorkSession[];
+  onClose: () => void;
+  equipmentOptions: { value: EquipmentType; label: string }[];
+}
+
+export default function ReportModal({
+  sessions,
+  onClose,
+  equipmentOptions,
+}: ReportModalProps) {
+  const [reportType, setReportType] = useState<"mission" | "facturation">(
+    "mission",
+  );
+
+  // Tri par date
+  const sortedSessions = [...sessions].sort(
+    (a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime() ||
+      a.startTime.localeCompare(b.startTime),
+  );
+
+  const calculateDurationHours = (start: string, end: string) => {
+    const [startH, startM] = start.split(":").map(Number);
+    const [endH, endM] = end.split(":").map(Number);
+    let diff = endH * 60 + endM - (startH * 60 + startM);
+    if (diff < 0) diff += 24 * 60;
+    return diff / 60;
+  };
+
+  // Synthèse par matériel pour facturation
+  const summaryByEquipment = sortedSessions.reduce(
+    (acc, session) => {
+      const eqLabel =
+        session.equipment === "autre"
+          ? session.customEquipment || "Autre"
+          : equipmentOptions.find((o) => o.value === session.equipment)
+              ?.label || session.equipment;
+      const hours = calculateDurationHours(session.startTime, session.endTime);
+      const amount = hours * session.hourlyRate;
+
+      if (!acc[eqLabel]) {
+        acc[eqLabel] = { hours: 0, amount: 0 };
+      }
+      acc[eqLabel].hours += hours;
+      acc[eqLabel].amount += amount;
+      return acc;
+    },
+    {} as Record<string, { hours: number; amount: number }>,
+  );
+
+  const totalAmount = Object.values(summaryByEquipment).reduce(
+    (sum, item) => sum + item.amount,
+    0,
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white md:bg-black/50 md:flex md:items-center md:justify-center print:static print:bg-white">
+      <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-5xl md:rounded-2xl shadow-xl flex flex-col overflow-hidden print:shadow-none print:w-full print:h-auto print:block">
+        {/* Header non imprimé */}
+        <div className="flex items-center justify-between p-6 border-b border-[#E5E0D5] print:hidden">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-[#3C413A]">
+              Éditer un Récapitulatif
+            </h2>
+            <div className="flex bg-[#F4F1EA] p-1 rounded-lg">
+              <button
+                onClick={() => setReportType("mission")}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "mission" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
+              >
+                Mission
+              </button>
+              <button
+                onClick={() => setReportType("facturation")}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "facturation" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
+              >
+                Facturation
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-[#6B8E63] text-white rounded-lg font-bold hover:bg-[#5a7a53] transition-colors"
+            >
+              <Printer size={18} /> Imprimer
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-[#7A8275] hover:bg-[#F4F1EA] rounded-lg transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* Zone imprimable */}
+        <div className="flex-1 overflow-auto p-8 print:p-0">
+          <div className="print:hidden mb-6">
+            <p className="text-[#7A8275] text-sm">
+              Aperçu avant impression. Cliquez sur Imprimer pour générer le
+              document.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-3xl font-bold text-[#3C413A] mb-8 text-center uppercase tracking-wider">
+              {reportType === "mission"
+                ? "Récapitulatif des Missions"
+                : "Récapitulatif de Facturation"}
+            </h1>
+
+            {reportType === "mission" && (
+              <table className="w-full text-left border-collapse border border-[#E5E0D5]">
+                <thead>
+                  <tr className="bg-[#F9F8F6] text-[#7A8275] text-sm uppercase tracking-wider">
+                    <th className="p-3 border border-[#E5E0D5] font-bold">
+                      Date
+                    </th>
+                    <th className="p-3 border border-[#E5E0D5] font-bold">
+                      Horaires
+                    </th>
+                    <th className="p-3 border border-[#E5E0D5] font-bold">
+                      Matériel
+                    </th>
+                    <th className="p-3 border border-[#E5E0D5] font-bold">
+                      Mission
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedSessions.map((session) => (
+                    <tr key={session.id}>
+                      <td className="p-3 border border-[#E5E0D5] font-medium text-[#3C413A]">
+                        {new Date(session.date).toLocaleDateString("fr-FR")}
+                      </td>
+                      <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                        {session.startTime} - {session.endTime}
+                      </td>
+                      <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                        {session.equipment === "autre"
+                          ? session.customEquipment
+                          : equipmentOptions.find(
+                              (o) => o.value === session.equipment,
+                            )?.label}
+                      </td>
+                      <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                        {session.mission}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {reportType === "facturation" && (
+              <div className="space-y-8">
+                <table className="w-full text-left border-collapse border border-[#E5E0D5]">
+                  <thead>
+                    <tr className="bg-[#F9F8F6] text-[#7A8275] text-sm uppercase tracking-wider">
+                      <th className="p-3 border border-[#E5E0D5] font-bold">
+                        Date
+                      </th>
+                      <th className="p-3 border border-[#E5E0D5] font-bold">
+                        Horaires
+                      </th>
+                      <th className="p-3 border border-[#E5E0D5] font-bold">
+                        Durée
+                      </th>
+                      <th className="p-3 border border-[#E5E0D5] font-bold">
+                        Mission
+                      </th>
+                      <th className="p-3 border border-[#E5E0D5] font-bold">
+                        Matériel
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSessions.map((session) => (
+                      <tr key={session.id}>
+                        <td className="p-3 border border-[#E5E0D5] font-medium text-[#3C413A]">
+                          {new Date(session.date).toLocaleDateString("fr-FR")}
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                          {session.startTime} - {session.endTime}
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A] font-medium">
+                          {calculateDurationHours(
+                            session.startTime,
+                            session.endTime,
+                          ).toFixed(1)}
+                          h
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                          {session.mission}
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                          {session.equipment === "autre"
+                            ? session.customEquipment
+                            : equipmentOptions.find(
+                                (o) => o.value === session.equipment,
+                              )?.label}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="bg-[#F9F8F6] p-6 border border-[#E5E0D5] rounded-xl break-inside-avoid">
+                  <h3 className="text-lg font-bold text-[#3C413A] mb-4 uppercase tracking-wider">
+                    Synthèse de facturation
+                  </h3>
+                  <table className="w-full text-left border-collapse mb-4">
+                    <thead>
+                      <tr className="text-[#7A8275] text-sm border-b border-[#D9D3C7]">
+                        <th className="py-2 font-bold">Matériel</th>
+                        <th className="py-2 font-bold text-right">
+                          Volume Horaire
+                        </th>
+                        <th className="py-2 font-bold text-right">
+                          Montant HT
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(summaryByEquipment).map(([eq, data]) => (
+                        <tr key={eq} className="border-b border-[#E5E0D5]">
+                          <td className="py-3 font-medium text-[#3C413A]">
+                            {eq}
+                          </td>
+                          <td className="py-3 text-right text-[#3C413A]">
+                            {data.hours.toFixed(1)}h
+                          </td>
+                          <td className="py-3 text-right font-medium text-[#3C413A]">
+                            {data.amount.toFixed(2)} €
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-[#D9D3C7]">
+                        <td className="py-4 font-bold text-lg text-[#3C413A] uppercase">
+                          Total Général
+                        </td>
+                        <td className="py-4 text-right font-bold text-lg text-[#3C413A]">
+                          {Object.values(summaryByEquipment)
+                            .reduce((s, d) => s + d.hours, 0)
+                            .toFixed(1)}
+                          h
+                        </td>
+                        <td className="py-4 text-right font-bold text-2xl text-[#4B6345]">
+                          {totalAmount.toFixed(2)} €
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {sortedSessions.length === 0 && (
+              <p className="text-center text-[#7A8275] py-8">
+                Aucune session enregistrée à imprimer.
+              </p>
+            )}
+
+            <div className="mt-12 text-center text-sm text-[#A3A8A0] print:block">
+              <p>
+                Édité le {new Date().toLocaleDateString("fr-FR")} par Big
+                Garbage is cleaning you
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
