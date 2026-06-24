@@ -1,4 +1,4 @@
-export type BinStatus = 'to_install' | 'installed' | 'overflowing' | 'to_remove' | 'removed';
+export type BinStatus = 'to_install' | 'installed' | 'overflowing' | 'to_remove' | 'removed' | 'missing';
 
 export type BinType = '100l_peintes' | '100l_sans_roue' | '300l' | '1100l' | '1100l_point_dechet';
 

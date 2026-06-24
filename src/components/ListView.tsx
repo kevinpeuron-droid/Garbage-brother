@@ -90,6 +90,7 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
       case 'overflowing': return <AlertTriangle className="text-[#916738]" size={18} />;
       case 'to_remove': return <Archive className="text-[#D4A373]" size={18} />;
       case 'removed': return <Trash2 className="text-[#D9D3C7]" size={18} />;
+      case 'missing': return <AlertTriangle className="text-[#9333EA]" size={18} />;
       default: return null;
     }
   };
@@ -97,10 +98,11 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'to_install': return 'À poser';
-      case 'installed': return 'Posée';
+      case 'installed': return 'Posée / OK';
       case 'overflowing': return 'Archi pleine';
       case 'to_remove': return 'À retirer';
       case 'removed': return 'Retirée';
+      case 'missing': return 'Manquante';
       default: return status;
     }
   };
@@ -185,10 +187,12 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
                       <div className="flex items-center gap-3 mb-1">
                         <h3 className="text-base font-bold text-[#4B6345]">{bin.name} {bin.count && bin.count > 1 ? `(x${bin.count})` : ''}</h3>
                         <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${
-                          bin.status === 'to_install' ? 'bg-[#EBE7DF] text-[#7A8275]' :
+                          bin.status === 'to_install' ? 'bg-[#EBE7DF] text-[#DC2626]' :
                           bin.status === 'installed' ? 'bg-[#6B8E63]/20 text-[#4B6345]' :
                           bin.status === 'to_remove' ? 'bg-[#D4A373]/20 text-[#916738]' :
                           bin.status === 'removed' ? 'bg-[#D9D3C7]/50 text-[#A08E78]' :
+                          bin.status === 'missing' ? 'bg-[#9333EA] text-white' :
+                          bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' :
                           'bg-[#916738] text-white'
                         }`}>
                           {getStatusLabel(bin.status)}

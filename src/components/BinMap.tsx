@@ -14,26 +14,47 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom icons based on status
-const createIcon = (color: string, count?: number) => {
-  const content = count && count > 1 ? `<span style="color: white; font-size: 10px; font-weight: bold;">${count}</span>` : '';
+const createIcon = (fillColor: string, borderColor: string, count?: number) => {
+  const content = count && count > 1 ? `<span style="color: ${borderColor === 'white' ? 'white' : borderColor}; font-size: 10px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${count}</span>` : '';
   return new L.DivIcon({
     className: 'custom-icon',
-    html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">${content}</div>`,
+    html: `<div style="background-color: ${fillColor}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">${content}</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
 };
 
-const getBinColor = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
-  if (bin.status === 'overflowing') return '#DC2626'; // Rouge pour archi pleine
-  if (bin.status === 'to_install') {
-    const typeConfig = binTypes.find(t => t.id === bin.type);
-    return typeConfig ? typeConfig.color : '#A08E78';
+const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
+  const typeConfig = binTypes.find(t => t.id === bin.type);
+  const fillColor = typeConfig ? typeConfig.color : '#A08E78';
+  
+  let borderColor = 'white';
+  
+  switch (bin.status) {
+    case 'to_install':
+      borderColor = '#DC2626'; // Rouge
+      break;
+    case 'installed':
+      borderColor = 'white'; // Blanc
+      break;
+    case 'overflowing':
+      borderColor = '#DC2626'; // Rouge pour archi pleine (on pourrait utiliser le fond rouge, mais l'utilisateur veut garder la couleur de remplissage)
+      break;
+    case 'missing':
+      borderColor = '#9333EA'; // Violet
+      break;
+    case 'to_remove':
+      borderColor = '#D4A373'; // Orange
+      break;
+    case 'removed':
+      borderColor = '#D9D3C7'; // Gris clair
+      break;
   }
-  if (bin.status === 'installed') return '#6B8E63'; // Vert
-  if (bin.status === 'to_remove') return '#D4A373'; // Orange
-  if (bin.status === 'removed') return '#D9D3C7'; // Gris clair
-  return '#A08E78';
+
+  // Si on veut vraiment démarquer missing/overflowing, on pourrait surcharger fillColor ici,
+  // mais la consigne dit "garder le code couleur de la poubelle en remplissage en lien avec la caractéristique"
+  
+  return { fillColor, borderColor };
 };
 
 interface BinMapProps {
@@ -59,7 +80,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
       return ['installed', 'to_remove', 'removed', 'overflowing'].includes(b.status);
     }
     if (mode === 'map_exploitation') {
-      return ['installed', 'overflowing'].includes(b.status);
+      return true; // toutes les poubelles apparaissent
     }
     return true;
   });
@@ -129,11 +150,12 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
 
       {placedBins.map((bin) => {
         const typeConfig = binTypes.find(t => t.id === bin.type);
+        const { fillColor, borderColor } = getBinStyle(bin, binTypes);
         return (
           <Marker 
             key={bin.id} 
             position={[bin.lat as number, bin.lng as number]} 
-            icon={createIcon(getBinColor(bin, binTypes), bin.count)}
+            icon={createIcon(fillColor, borderColor, bin.count)}
           >
             <Popup>
               <div className="p-1 min-w-[200px] text-[#3C413A] font-sans">
@@ -160,8 +182,9 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                     )}
                     {mode === 'map_exploitation' && (
                       <>
-                        <button onClick={() => onUpdateStatus(bin.id, 'installed')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'installed' ? 'bg-[#6B8E63] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>✅ Vidée</button>
-                        <button onClick={() => onUpdateStatus(bin.id, 'overflowing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' : 'bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]'}`}>🚨 Archi pleine</button>
+                        <button onClick={() => onUpdateStatus(bin.id, 'missing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'missing' ? 'bg-[#9333EA] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>Manquante</button>
+                        <button onClick={() => onUpdateStatus(bin.id, 'installed')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === 'installed' ? 'bg-[#6B8E63] text-white' : 'bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]'}`}>OK avec la vie</button>
+                        <button onClick={() => onUpdateStatus(bin.id, 'overflowing')} className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === 'overflowing' ? 'bg-[#DC2626] text-white' : 'bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]'}`}>🚨 Archi pleine</button>
                       </>
                     )}
                   </div>
