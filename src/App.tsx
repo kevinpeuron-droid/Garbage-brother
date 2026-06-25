@@ -26,6 +26,7 @@ type ViewMode =
   | "map_pose"
   | "map_depose"
   | "map_exploitation"
+  | "map_edition"
   | "list"
   | "settings"
   | "hours";
@@ -50,6 +51,15 @@ export default function App() {
     const saved = localStorage.getItem("vcp-sessions");
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [overlayImages, setOverlayImages] = useState<any[]>(() => {
+    const saved = localStorage.getItem("vcp-overlays");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("vcp-overlays", JSON.stringify(overlayImages));
+  }, [overlayImages]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("map_pose");
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
@@ -169,6 +179,14 @@ export default function App() {
     setViewMode("map_pose");
   };
 
+  const handleAddBin = (newBin: Omit<TrashBin, 'id'>) => {
+    const bin: TrashBin = {
+      ...newBin,
+      id: crypto.randomUUID(),
+    };
+    setBins(prev => [...prev, bin]);
+  };
+
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === "VC26") {
@@ -277,6 +295,12 @@ export default function App() {
           {!isExternal && (
             <>
               <button
+                onClick={() => setViewMode("map_edition")}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_edition" ? "bg-[#3B82F6] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+              >
+                <Map size={16} /> Mode Édition
+              </button>
+              <button
                 onClick={() => setViewMode("list")}
                 className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
               >
@@ -321,6 +345,7 @@ export default function App() {
       <main className="flex-1 flex overflow-hidden relative">
         {(viewMode === "map_pose" ||
           viewMode === "map_depose" ||
+          viewMode === "map_edition" ||
           viewMode === "map_exploitation") && (
           <div className="flex-1 relative z-0">
             <BinMap
@@ -334,6 +359,9 @@ export default function App() {
               placingBinId={placingBinId}
               onPlaceBin={handlePlaceBin}
               onDeleteBin={handleDeleteBin}
+              onStartPlacing={handleStartPlacing}
+              overlayImages={overlayImages}
+              onOverlayImagesChange={setOverlayImages}
             />
           </div>
         )}
@@ -345,6 +373,7 @@ export default function App() {
             onImportBins={handleImportBins}
             onStartPlacing={handleStartPlacing}
             onDeleteBin={handleDeleteBin}
+            onAddBin={handleAddBin}
           />
         )}
 

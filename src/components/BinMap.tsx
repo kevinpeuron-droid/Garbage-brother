@@ -1,9 +1,10 @@
-import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, Tooltip } from 'react-leaflet';
+import React, { useState, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, Tooltip, ImageOverlay } from 'react-leaflet';
 import L from 'leaflet';
-import { TrashBin, MapShape, BinTypeConfig } from '../types';
+import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from '../types';
 import MapDrawing from './MapDrawing';
 import MapEvents from './MapEvents';
+import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2 } from 'lucide-react';
 
 // Fix for default Leaflet markers in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -61,16 +62,19 @@ interface BinMapProps {
   bins: TrashBin[];
   shapes: MapShape[];
   binTypes: BinTypeConfig[];
-  mode: 'map_pose' | 'map_depose' | 'map_exploitation';
+  mode: 'map_pose' | 'map_depose' | 'map_exploitation' | 'map_edition';
   onUpdateStatus: (id: string, status: TrashBin['status']) => void;
   onShapesChange: (shapes: MapShape[]) => void;
   selectedBinId: string | null;
   placingBinId: string | null;
   onPlaceBin: (lat: number, lng: number) => void;
   onDeleteBin: (id: string) => void;
+  onStartPlacing?: (id: string) => void;
+  overlayImages?: OverlayImage[];
+  onOverlayImagesChange?: (images: OverlayImage[]) => void;
 }
 
-export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, onShapesChange, selectedBinId, placingBinId, onPlaceBin, onDeleteBin }: BinMapProps) {
+export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, onShapesChange, selectedBinId, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing, overlayImages = [], onOverlayImagesChange }: BinMapProps) {
   // Filter bins based on mode to keep the map clear
   const placedBins = bins.filter(b => b.lat !== null && b.lng !== null).filter(b => {
     if (mode === 'map_pose') {
@@ -85,12 +89,63 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
     return true;
   });
 
-  return (
+  const unplacedBins = bins.filter(b => b.lat === null || b.lng === null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onOverlayImagesChange) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        // Default bounds around the center
+        const bounds: [[number, number], [number, number]] = [
+          [48.2750, -3.5600],
+          [48.2670, -3.5500]
+        ];
+        onOverlayImagesChange([
+          ...overlayImages,
+          {
+            id: `img-${Date.now()}`,
+            url,
+            bounds,
+            opacity: 0.7,
+            locked: false
+          }
+        ]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const updateImage = (id: string, updates: Partial<OverlayImage>) => {
+    if (onOverlayImagesChange) {
+      onOverlayImagesChange(overlayImages.map(img => img.id === id ? { ...img, ...updates } : img));
+    }
+  };
+
+  const removeImage = (id: string) => {
+    if (onOverlayImagesChange) {
+      onOverlayImagesChange(overlayImages.filter(img => img.id !== id));
+    }
+  };
+
+  const mapContent = (
     <MapContainer center={[48.2710, -3.5550]} zoom={15} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId ? 'crosshair' : 'grab' }}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      
+      {overlayImages.map(img => (
+        <ImageOverlay
+          key={img.id}
+          url={img.url}
+          bounds={img.bounds}
+          opacity={img.opacity}
+          zIndex={10}
+        />
+      ))}
+
       <MapDrawing shapes={shapes} onShapesChange={onShapesChange} />
       <MapEvents onMapClick={onPlaceBin} />
       
@@ -208,4 +263,143 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
       })}
     </MapContainer>
   );
+
+  if (mode === 'map_edition') {
+    return (
+      <div className="flex w-full h-full relative">
+        <div className="flex-1 relative">
+          {mapContent}
+        </div>
+        <div className="w-80 bg-white border-l border-[#E5E0D5] flex flex-col h-full z-[1000] shadow-xl overflow-y-auto">
+          <div className="p-4 border-b border-[#E5E0D5] bg-[#F9F8F6]">
+            <h2 className="font-bold text-[#4B6345] flex items-center gap-2">
+              <Crosshair size={18} /> Mode Édition
+            </h2>
+            <p className="text-xs text-[#7A8275] mt-1">Gérez le plan et les images de référence.</p>
+          </div>
+
+          <div className="p-4 border-b border-[#E5E0D5]">
+            <h3 className="font-bold text-sm text-[#3C413A] mb-3 flex items-center gap-2">
+              <ImageIcon size={16} /> Images de référence
+            </h3>
+            
+            <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-[#D9D3C7] rounded-xl hover:border-[#6B8E63] hover:bg-[#F9F8F6] transition-colors cursor-pointer mb-4">
+              <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              <div className="text-center">
+                <Plus size={24} className="mx-auto text-[#7A8275] mb-1" />
+                <span className="text-xs font-bold text-[#7A8275]">Ajouter une image</span>
+              </div>
+            </label>
+
+            <div className="space-y-3">
+              {overlayImages.map((img, idx) => (
+                <div key={img.id} className="bg-[#F9F8F6] p-3 rounded-xl border border-[#E5E0D5]">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-bold text-[#4B6345]">Image {idx + 1}</span>
+                    <button onClick={() => removeImage(img.id)} className="text-[#DC2626] hover:bg-[#FEE2E2] p-1 rounded">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-[#7A8275] uppercase flex justify-between">
+                        Opacité <span>{Math.round(img.opacity * 100)}%</span>
+                      </label>
+                      <input 
+                        type="range" min="0" max="1" step="0.1" 
+                        value={img.opacity} 
+                        onChange={e => updateImage(img.id, { opacity: parseFloat(e.target.value) })}
+                        className="w-full accent-[#6B8E63]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          const dLat = 0.001;
+                          updateImage(img.id, { bounds: [[sw[0] + dLat, sw[1]], [ne[0] + dLat, ne[1]]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Haut"
+                      ><ArrowUp size={14} /></button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          const dLat = -0.001;
+                          updateImage(img.id, { bounds: [[sw[0] + dLat, sw[1]], [ne[0] + dLat, ne[1]]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Bas"
+                      ><ArrowDown size={14} /></button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          const dLng = -0.001;
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] + dLng], [ne[0], ne[1] + dLng]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Gauche"
+                      ><ArrowLeft size={14} /></button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          const dLng = 0.001;
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] + dLng], [ne[0], ne[1] + dLng]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Droite"
+                      ><ArrowRight size={14} /></button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          // Agrandir: decrease SW, increase NE
+                          updateImage(img.id, { bounds: [[sw[0] - 0.001, sw[1] - 0.001], [ne[0] + 0.001, ne[1] + 0.001]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
+                      ><Maximize2 size={12} /> Agrandir</button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          // Rétrécir: increase SW, decrease NE
+                          updateImage(img.id, { bounds: [[sw[0] + 0.001, sw[1] + 0.001], [ne[0] - 0.001, ne[1] - 0.001]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
+                      ><Minus size={12} /> Rétrécir</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4">
+            <h3 className="font-bold text-sm text-[#3C413A] mb-3 flex items-center gap-2">
+              Poubelles à poser ({unplacedBins.length})
+            </h3>
+            <div className="space-y-2">
+              {unplacedBins.map(bin => {
+                const typeConfig = binTypes.find(t => t.id === bin.type);
+                return (
+                  <div key={bin.id} className="p-3 bg-white border border-[#D9D3C7] rounded-lg shadow-sm flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-[#4B6345] text-xs">{bin.name} {bin.count && bin.count > 1 ? `(x${bin.count})` : ''}</h4>
+                      <p className="text-[10px] text-[#7A8275]">{bin.zone}</p>
+                    </div>
+                    <button 
+                      onClick={() => onStartPlacing?.(bin.id)}
+                      className={`p-1.5 rounded transition-colors ${placingBinId === bin.id ? 'bg-[#6B8E63] text-white' : 'bg-[#EBE7DF] text-[#4B6345] hover:bg-[#D9D3C7]'}`}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return mapContent;
 }

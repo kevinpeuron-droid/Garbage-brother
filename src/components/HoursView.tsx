@@ -51,10 +51,14 @@ export default function HoursView({
     localStorage.setItem("vcp-missions", JSON.stringify(missionsList));
   }, [missionsList]);
 
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editSession, setEditSession] = useState<any>(null);
+
   const [newSession, setNewSession] = useState({
     date: new Date().toISOString().split("T")[0],
     startTime: "08:00",
     endTime: "17:00",
+    breakMinutes: 60,
     mission: missionsList[0] || "",
     equipment: "tracteur_perso" as EquipmentType,
     customEquipment: "",
@@ -83,6 +87,7 @@ export default function HoursView({
       date: newSession.date,
       startTime: newSession.startTime,
       endTime: newSession.endTime,
+      breakMinutes: newSession.breakMinutes || 0,
       mission: newSession.mission,
       equipment: newSession.equipment,
       customEquipment: newSession.customEquipment,
@@ -95,21 +100,36 @@ export default function HoursView({
     }));
   };
 
-  const calculateDurationHours = (start: string, end: string) => {
+  const handleSaveEdit = () => {
+    if (!editSession || !editingSessionId) return;
+    const rate =
+      editSession.equipment === "autre" ? 0 : rates[editSession.equipment] || 0;
+    onUpdateSession(editingSessionId, {
+      ...editSession,
+      hourlyRate: rate,
+    });
+    setEditingSessionId(null);
+    setEditSession(null);
+  };
+
+  const calculateDurationHours = (start: string, end: string, breakMins: number = 0) => {
+    if (!start || !end) return 0;
     const [startH, startM] = start.split(":").map(Number);
     const [endH, endM] = end.split(":").map(Number);
     let diff = endH * 60 + endM - (startH * 60 + startM);
     if (diff < 0) diff += 24 * 60;
+    diff -= breakMins;
+    if (diff < 0) diff = 0;
     return diff / 60;
   };
 
   const totalAmount = sessions.reduce((sum, session) => {
-    const duration = calculateDurationHours(session.startTime, session.endTime);
+    const duration = calculateDurationHours(session.startTime, session.endTime, session.breakMinutes || 0);
     return sum + duration * session.hourlyRate;
   }, 0);
 
   const totalHours = sessions.reduce((sum, session) => {
-    return sum + calculateDurationHours(session.startTime, session.endTime);
+    return sum + calculateDurationHours(session.startTime, session.endTime, session.breakMinutes || 0);
   }, 0);
 
   return (
@@ -227,8 +247,8 @@ export default function HoursView({
               <thead>
                 <tr className="bg-[#F9F8F6] border-b border-[#E5E0D5] text-[#7A8275] text-xs uppercase tracking-wider">
                   <th className="p-4 font-bold">Date</th>
-                  <th className="p-4 font-bold text-center" colSpan={2}>
-                    Horaires (Début - Fin)
+                  <th className="p-4 font-bold text-center" colSpan={3}>
+                    Horaires (Début - Fin - Pause)
                   </th>
                   <th className="p-4 font-bold">Mission</th>
                   <th className="p-4 font-bold">Matériel</th>
@@ -274,6 +294,20 @@ export default function HoursView({
                       }
                       className="w-full px-2 py-1.5 text-sm bg-white border border-[#D9D3C7] rounded focus:ring-2 focus:ring-[#6B8E63] outline-none"
                     />
+                  </td>
+                  <td className="p-2">
+                    <div className="flex items-center bg-white border border-[#D9D3C7] rounded px-2 py-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        step="15"
+                        value={newSession.breakMinutes}
+                        onChange={(e) => setNewSession({...newSession, breakMinutes: parseInt(e.target.value) || 0})}
+                        className="w-12 text-sm focus:outline-none"
+                        title="Pause (minutes)"
+                      />
+                      <span className="text-xs text-[#7A8275]">min</span>
+                    </div>
                   </td>
                   <td className="p-2">
                     <select
@@ -360,7 +394,7 @@ export default function HoursView({
 
                 {sessions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-[#7A8275]">
+                    <td colSpan={8} className="p-8 text-center text-[#7A8275]">
                       Aucune session enregistrée.
                     </td>
                   </tr>
@@ -376,8 +410,94 @@ export default function HoursView({
                       const duration = calculateDurationHours(
                         session.startTime,
                         session.endTime,
+                        session.breakMinutes || 0
                       );
                       const total = duration * session.hourlyRate;
+
+                      if (editingSessionId === session.id) {
+                        return (
+                          <tr key={session.id} className="bg-[#F4F1EA] border-b border-[#E5E0D5]">
+                            <td className="p-2">
+                              <input
+                                type="date"
+                                value={editSession.date}
+                                onChange={(e) => setEditSession({...editSession, date: e.target.value})}
+                                className="w-full px-2 py-1.5 text-sm bg-white border border-[#D9D3C7] rounded outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="time"
+                                value={editSession.startTime}
+                                onChange={(e) => setEditSession({...editSession, startTime: e.target.value})}
+                                className="w-full px-2 py-1.5 text-sm bg-white border border-[#D9D3C7] rounded outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="time"
+                                value={editSession.endTime}
+                                onChange={(e) => setEditSession({...editSession, endTime: e.target.value})}
+                                className="w-full px-2 py-1.5 text-sm bg-white border border-[#D9D3C7] rounded outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <div className="flex items-center bg-white border border-[#D9D3C7] rounded px-2 py-1.5">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="15"
+                                  value={editSession.breakMinutes}
+                                  onChange={(e) => setEditSession({...editSession, breakMinutes: parseInt(e.target.value) || 0})}
+                                  className="w-12 text-sm focus:outline-none"
+                                />
+                                <span className="text-xs text-[#7A8275]">min</span>
+                              </div>
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={editSession.mission}
+                                onChange={(e) => setEditSession({...editSession, mission: e.target.value})}
+                                className="w-full px-2 py-1.5 text-sm bg-white border border-[#D9D3C7] rounded outline-none"
+                              >
+                                {missionsList.map((m) => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={editSession.equipment}
+                                onChange={(e) => setEditSession({...editSession, equipment: e.target.value as EquipmentType})}
+                                className="w-full px-2 py-1.5 text-sm bg-white border border-[#D9D3C7] rounded outline-none"
+                              >
+                                {equipmentOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2 text-[#7A8275] text-sm">
+                              {(calculateDurationHours(editSession.startTime, editSession.endTime, editSession.breakMinutes || 0) * (editSession.equipment === "autre" ? 0 : rates[editSession.equipment] || 0)).toFixed(2)}€
+                            </td>
+                            <td className="p-2 text-right">
+                              <div className="flex justify-end gap-1">
+                                <button
+                                  onClick={handleSaveEdit}
+                                  className="p-1.5 text-white bg-[#6B8E63] hover:bg-[#5a7a53] rounded-lg transition-colors"
+                                >
+                                  OK
+                                </button>
+                                <button
+                                  onClick={() => setEditingSessionId(null)}
+                                  className="p-1.5 text-[#7A8275] bg-white hover:bg-[#E5E0D5] rounded-lg transition-colors border border-[#D9D3C7]"
+                                >
+                                  Annuler
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
 
                       return (
                         <tr
@@ -389,9 +509,10 @@ export default function HoursView({
                           </td>
                           <td
                             className="p-4 text-[#7A8275] whitespace-nowrap text-center"
-                            colSpan={2}
+                            colSpan={3}
                           >
-                            {session.startTime} - {session.endTime}{" "}
+                            {session.startTime} - {session.endTime}
+                            {session.breakMinutes ? ` (pause ${session.breakMinutes}m)` : ""}{" "}
                             <span className="text-[#4B6345] ml-2 font-medium text-xs bg-[#EBE7DF] px-2 py-1 rounded">
                               ({duration.toFixed(1)}h)
                             </span>
@@ -420,13 +541,25 @@ export default function HoursView({
                             {total.toFixed(2)}€
                           </td>
                           <td className="p-4 text-right">
-                            <button
-                              onClick={() => onDeleteSession(session.id)}
-                              className="p-1.5 text-[#DC2626] hover:bg-[#FEE2E2] rounded-lg transition-colors"
-                              title="Supprimer"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            <div className="flex justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingSessionId(session.id);
+                                  setEditSession({ ...session });
+                                }}
+                                className="p-1.5 text-[#4B6345] hover:bg-[#EBE7DF] rounded-lg transition-colors"
+                                title="Modifier"
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                onClick={() => onDeleteSession(session.id)}
+                                className="p-1.5 text-[#DC2626] hover:bg-[#FEE2E2] rounded-lg transition-colors"
+                                title="Supprimer"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

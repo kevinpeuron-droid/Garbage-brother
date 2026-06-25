@@ -10,12 +10,42 @@ interface ListViewProps {
   onImportBins: (importedBins: Omit<TrashBin, 'id' | 'lat' | 'lng' | 'lastEmptied'>[], groupStrategy: 'group' | 'individual') => void;
   onStartPlacing: (binId: string) => void;
   onDeleteBin: (id: string) => void;
+  onAddBin: (bin: Omit<TrashBin, 'id'>) => void;
 }
 
-export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin }: ListViewProps) {
+export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onAddBin }: ListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
   const [groupStrategy, setGroupStrategy] = useState<'group' | 'individual'>('group');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newBin, setNewBin] = useState({
+    name: '',
+    zone: '',
+    type: binTypes[0]?.id || '100l_peintes',
+    count: 1
+  });
+
+  const handleManualAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBin.name) return;
+    onAddBin({
+      name: newBin.name,
+      zone: newBin.zone || 'Non définie',
+      status: 'to_install',
+      type: newBin.type as any,
+      count: newBin.count,
+      lat: null,
+      lng: null,
+      lastEmptied: new Date().toISOString()
+    });
+    setNewBin({
+      name: '',
+      zone: '',
+      type: binTypes[0]?.id || '100l_peintes',
+      count: 1
+    });
+    setShowAddForm(false);
+  };
 
   const filteredBins = bins.filter(bin => 
     bin.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -155,16 +185,63 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
                 </div>
               </div>
               
-              <div className="relative">
-                <Search className="absolute left-4 top-3 text-[#7A8275]" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher une poubelle..." 
-                  className="w-full pl-12 pr-4 py-3 border border-[#D9D3C7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6B8E63] bg-white text-[#3C413A] placeholder-[#7A8275]"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-3 text-[#7A8275]" size={20} />
+                  <input 
+                    type="text" 
+                    placeholder="Rechercher une poubelle..." 
+                    className="w-full pl-12 pr-4 py-3 border border-[#D9D3C7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6B8E63] bg-white text-[#3C413A] placeholder-[#7A8275]"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="px-6 py-3 bg-[#6B8E63] text-white font-bold rounded-xl hover:bg-[#5a7a53] transition-colors"
+                >
+                  {showAddForm ? 'Fermer' : 'Ajouter manuellement'}
+                </button>
               </div>
+
+              {showAddForm && (
+                <form onSubmit={handleManualAdd} className="mt-4 p-4 bg-white rounded-xl border border-[#D9D3C7] shadow-sm grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-[#7A8275] mb-1">Nom</label>
+                    <input
+                      required
+                      type="text"
+                      className="w-full px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
+                      value={newBin.name}
+                      onChange={(e) => setNewBin({...newBin, name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#7A8275] mb-1">Zone</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
+                      value={newBin.zone}
+                      onChange={(e) => setNewBin({...newBin, zone: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#7A8275] mb-1">Type</label>
+                    <select
+                      className="w-full px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
+                      value={newBin.type}
+                      onChange={(e) => setNewBin({...newBin, type: e.target.value as any})}
+                    >
+                      {binTypes.map(t => (
+                        <option key={t.id} value={t.id}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button type="submit" className="w-full py-2 bg-[#4B6345] text-white font-bold rounded-lg hover:bg-[#3C413A] transition-colors">
+                    Enregistrer
+                  </button>
+                </form>
+              )}
             </>
           )}
         </div>

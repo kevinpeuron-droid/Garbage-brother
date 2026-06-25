@@ -35,6 +35,7 @@ export interface WorkSession {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
+  breakMinutes?: number; // Pause duration in minutes
   mission: string;
   equipment: EquipmentType;
   customEquipment?: string;
@@ -54,5 +55,13 @@ export interface MapShape {
   type: 'polygon' | 'rectangle';
   color: string;
   positions: [number, number][];
+}
+
+export interface OverlayImage {
+  id: string;
+  url: string;
+  bounds: [[number, number], [number, number]]; // [[south, west], [north, east]]
+  opacity: number;
+  locked: boolean;
 }
 
