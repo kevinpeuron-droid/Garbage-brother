@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, Tooltip, ImageOverlay } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, Tooltip, ImageOverlay, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from '../types';
 import MapDrawing from './MapDrawing';
@@ -89,7 +89,72 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
     return true;
   });
 
+  type CalibrationState = {
+    imageId: string;
+    step: number; // 0: img1, 1: map1, 2: img2, 3: map2
+    img1?: [number, number];
+    map1?: [number, number];
+    img2?: [number, number];
+  };
+  const [calibration, setCalibration] = useState<CalibrationState | null>(null);
+
   const [precision, setPrecision] = useState(0.0005);
+
+  const handleMapClick = (lat: number, lng: number) => {
+    if (calibration) {
+      const image = overlayImages.find(img => img.id === calibration.imageId);
+      if (!image) {
+        setCalibration(null);
+        return;
+      }
+      
+      if (calibration.step === 0) {
+        setCalibration({ ...calibration, step: 1, img1: [lat, lng] });
+      } else if (calibration.step === 1) {
+        setCalibration({ ...calibration, step: 2, map1: [lat, lng] });
+      } else if (calibration.step === 2) {
+        setCalibration({ ...calibration, step: 3, img2: [lat, lng] });
+      } else if (calibration.step === 3) {
+        const img1 = calibration.img1!;
+        const map1 = calibration.map1!;
+        const img2 = calibration.img2!;
+        const map2 = [lat, lng] as [number, number];
+    
+        const [SW, NE] = image.bounds;
+    
+        const pct_x1 = (img1[1] - SW[1]) / (NE[1] - SW[1]);
+        const pct_y1 = (img1[0] - SW[0]) / (NE[0] - SW[0]);
+        
+        const pct_x2 = (img2[1] - SW[1]) / (NE[1] - SW[1]);
+        const pct_y2 = (img2[0] - SW[0]) / (NE[0] - SW[0]);
+    
+        if (Math.abs(pct_x2 - pct_x1) < 0.01 || Math.abs(pct_y2 - pct_y1) < 0.01) {
+          alert("Les points sont trop proches. Veuillez réessayer avec des points plus éloignés.");
+          setCalibration({ imageId: calibration.imageId, step: 0 });
+          return;
+        }
+    
+        const W = (map2[1] - map1[1]) / (pct_x2 - pct_x1);
+        const new_SW_lng = map1[1] - pct_x1 * W;
+        const new_NE_lng = new_SW_lng + W;
+    
+        const H = (map2[0] - map1[0]) / (pct_y2 - pct_y1);
+        const new_SW_lat = map1[0] - pct_y1 * H;
+        const new_NE_lat = new_SW_lat + H;
+    
+        updateImage(calibration.imageId, {
+          bounds: [
+            [new_SW_lat, new_SW_lng],
+            [new_NE_lat, new_NE_lng]
+          ]
+        });
+        setCalibration(null);
+      }
+      return;
+    }
+
+    onPlaceBin(lat, lng);
+  };
 
   const unplacedBins = bins.filter(b => b.lat === null || b.lng === null);
 
@@ -132,7 +197,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
   };
 
   const mapContent = (
-    <MapContainer center={[48.2710, -3.5550]} zoom={15} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId ? 'crosshair' : 'grab' }}>
+    <MapContainer center={[48.2710, -3.5550]} zoom={15} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId || calibration ? 'crosshair' : 'grab' }}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -143,13 +208,17 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
           key={img.id}
           url={img.url}
           bounds={img.bounds}
-          opacity={img.opacity}
+          opacity={calibration && calibration.imageId === img.id && (calibration.step === 1 || calibration.step === 3) ? 0.2 : img.opacity}
           zIndex={10}
         />
       ))}
 
+      {calibration?.img1 && <CircleMarker center={calibration.img1} radius={5} pathOptions={{ color: '#DC2626', fillColor: '#DC2626', fillOpacity: 0.8 }} />}
+      {calibration?.map1 && <CircleMarker center={calibration.map1} radius={5} pathOptions={{ color: '#2563EB', fillColor: '#2563EB', fillOpacity: 0.8 }} />}
+      {calibration?.img2 && <CircleMarker center={calibration.img2} radius={5} pathOptions={{ color: '#DC2626', fillColor: '#DC2626', fillOpacity: 0.8 }} />}
+
       <MapDrawing shapes={shapes} onShapesChange={onShapesChange} />
-      <MapEvents onMapClick={onPlaceBin} />
+      <MapEvents onMapClick={handleMapClick} />
       
       {shapes.map((shape) => {
         const pathOptions = { color: shape.color, weight: 2, fillColor: shape.color, fillOpacity: 0.2 };
@@ -401,6 +470,32 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
                       >&gt;&lt; Hauteur -</button>
+                    </div>
+                    
+                    <div className="pt-2 border-t border-[#D9D3C7]">
+                      {calibration?.imageId === img.id ? (
+                        <div className="bg-[#FEF3C7] p-2 rounded-lg border border-[#F59E0B] text-xs">
+                          <p className="font-bold text-[#92400E] mb-1">
+                            {calibration.step === 0 && "1. Cliquez sur un point de repère sur l'image."}
+                            {calibration.step === 1 && "2. Cliquez sur l'emplacement réel sur la carte."}
+                            {calibration.step === 2 && "3. Cliquez sur un 2ème point sur l'image."}
+                            {calibration.step === 3 && "4. Cliquez sur le 2ème emplacement sur la carte."}
+                          </p>
+                          <button 
+                            onClick={() => setCalibration(null)}
+                            className="w-full mt-2 py-1 bg-white border border-[#F59E0B] text-[#92400E] rounded font-bold hover:bg-[#FEF3C7]"
+                          >
+                            Annuler le calibrage
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCalibration({ imageId: img.id, step: 0 })}
+                          className="w-full py-1.5 bg-[#EBE7DF] border border-[#D9D3C7] text-[#4B6345] rounded-lg font-bold hover:bg-[#D9D3C7] transition-colors text-xs flex items-center justify-center gap-2"
+                        >
+                          <Crosshair size={14} /> Calibrer (2 points)
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
