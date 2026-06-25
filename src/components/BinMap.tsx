@@ -89,6 +89,8 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
     return true;
   });
 
+  const [precision, setPrecision] = useState(0.0005);
+
   const unplacedBins = bins.filter(b => b.lat === null || b.lng === null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,6 +285,18 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
               <ImageIcon size={16} /> Images de référence
             </h3>
             
+            <div className="mb-4">
+              <label className="text-[10px] font-bold text-[#7A8275] uppercase flex justify-between mb-1">
+                Précision des déplacements
+              </label>
+              <input 
+                type="range" min="0.00001" max="0.005" step="0.00001" 
+                value={precision} 
+                onChange={e => setPrecision(parseFloat(e.target.value))}
+                className="w-full accent-[#6B8E63]"
+              />
+            </div>
+
             <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-[#D9D3C7] rounded-xl hover:border-[#6B8E63] hover:bg-[#F9F8F6] transition-colors cursor-pointer mb-4">
               <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
               <div className="text-center">
@@ -318,32 +332,28 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          const dLat = 0.001;
-                          updateImage(img.id, { bounds: [[sw[0] + dLat, sw[1]], [ne[0] + dLat, ne[1]]] });
+                          updateImage(img.id, { bounds: [[sw[0] + precision, sw[1]], [ne[0] + precision, ne[1]]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Haut"
                       ><ArrowUp size={14} /></button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          const dLat = -0.001;
-                          updateImage(img.id, { bounds: [[sw[0] + dLat, sw[1]], [ne[0] + dLat, ne[1]]] });
+                          updateImage(img.id, { bounds: [[sw[0] - precision, sw[1]], [ne[0] - precision, ne[1]]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Bas"
                       ><ArrowDown size={14} /></button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          const dLng = -0.001;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] + dLng], [ne[0], ne[1] + dLng]] });
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] - precision], [ne[0], ne[1] - precision]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Gauche"
                       ><ArrowLeft size={14} /></button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          const dLng = 0.001;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] + dLng], [ne[0], ne[1] + dLng]] });
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] + precision], [ne[0], ne[1] + precision]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Droite"
                       ><ArrowRight size={14} /></button>
@@ -352,44 +362,42 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          // Agrandir: decrease SW, increase NE
-                          updateImage(img.id, { bounds: [[sw[0] - 0.001, sw[1] - 0.001], [ne[0] + 0.001, ne[1] + 0.001]] });
+                          updateImage(img.id, { bounds: [[sw[0] - precision, sw[1] - precision], [ne[0] + precision, ne[1] + precision]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
                       ><Maximize2 size={12} /> Agrandir</button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          // Rétrécir: increase SW, decrease NE
-                          updateImage(img.id, { bounds: [[sw[0] + 0.001, sw[1] + 0.001], [ne[0] - 0.001, ne[1] - 0.001]] });
+                          updateImage(img.id, { bounds: [[sw[0] + precision, sw[1] + precision], [ne[0] - precision, ne[1] - precision]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
                       ><Minus size={12} /> Rétrécir</button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] - 0.001], [ne[0], ne[1] + 0.001]] });
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] - precision], [ne[0], ne[1] + precision]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
                       >↔ Largeur +</button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] + 0.001], [ne[0], ne[1] - 0.001]] });
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] + precision], [ne[0], ne[1] - precision]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
                       >&gt;&lt; Largeur -</button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] - 0.001, sw[1]], [ne[0] + 0.001, ne[1]]] });
+                          updateImage(img.id, { bounds: [[sw[0] - precision, sw[1]], [ne[0] + precision, ne[1]]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
                       >↕ Hauteur +</button>
                       <button 
                         onClick={() => {
                           const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] + 0.001, sw[1]], [ne[0] - 0.001, ne[1]]] });
+                          updateImage(img.id, { bounds: [[sw[0] + precision, sw[1]], [ne[0] - precision, ne[1]]] });
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
                       >&gt;&lt; Hauteur -</button>
