@@ -365,6 +365,34 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                         }}
                         className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
                       ><Minus size={12} /> Rétrécir</button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] - 0.001], [ne[0], ne[1] + 0.001]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                      >↔ Largeur +</button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          updateImage(img.id, { bounds: [[sw[0], sw[1] + 0.001], [ne[0], ne[1] - 0.001]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                      >&gt;&lt; Largeur -</button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          updateImage(img.id, { bounds: [[sw[0] - 0.001, sw[1]], [ne[0] + 0.001, ne[1]]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                      >↕ Hauteur +</button>
+                      <button 
+                        onClick={() => {
+                          const [sw, ne] = img.bounds;
+                          updateImage(img.id, { bounds: [[sw[0] + 0.001, sw[1]], [ne[0] - 0.001, ne[1]]] });
+                        }}
+                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                      >&gt;&lt; Hauteur -</button>
                     </div>
                   </div>
                 </div>

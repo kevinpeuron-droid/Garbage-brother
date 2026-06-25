@@ -54,7 +54,11 @@ export default function App() {
 
   const [overlayImages, setOverlayImages] = useState<any[]>(() => {
     const saved = localStorage.getItem("vcp-overlays");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
