@@ -97,10 +97,10 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
       const reader = new FileReader();
       reader.onload = (event) => {
         const url = event.target?.result as string;
-        // Default bounds around the center
+        // Default bounds around the center [SouthWest, NorthEast]
         const bounds: [[number, number], [number, number]] = [
-          [48.2750, -3.5600],
-          [48.2670, -3.5500]
+          [48.2670, -3.5600], // South-West
+          [48.2750, -3.5500]  // North-East
         ];
         onOverlayImagesChange([
           ...overlayImages,

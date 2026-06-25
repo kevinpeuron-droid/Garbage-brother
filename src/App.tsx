@@ -58,7 +58,11 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem("vcp-overlays", JSON.stringify(overlayImages));
+    try {
+      localStorage.setItem("vcp-overlays", JSON.stringify(overlayImages));
+    } catch (error) {
+      console.error("Failed to save overlays to localStorage (image might be too large):", error);
+    }
   }, [overlayImages]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("map_pose");
