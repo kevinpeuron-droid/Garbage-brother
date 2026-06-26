@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TrashBin, BinTypeConfig } from '../types';
 import { Trash2, AlertTriangle, CheckCircle, Download, Search, Upload, MapPin, Archive } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 import { useDropzone } from 'react-dropzone';
 
 interface ListViewProps {
@@ -27,13 +28,6 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
 
   const [importData, setImportData] = useState<any[] | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
-  const [importMode, setImportMode] = useState<'list' | 'matrix'>('list');
-  const [columnMapping, setColumnMapping] = useState({
-    name: '',
-    zone: '',
-    type: '',
-    count: ''
-  });
   const [matrixMapping, setMatrixMapping] = useState<Record<string, string>>({
     zone: ''
   });
@@ -80,67 +74,78 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Poubelles");
     XLSX.writeFile(wb, `poubelles_export_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const onDrop = (acceptedFiles: File[]) => {
+  };  const onDrop = (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet) as any[];
-        
-        if (jsonData.length > 0) {
-          const cols = Object.keys(jsonData[0]);
-          setColumns(cols);
-          setImportData(jsonData);
-          // Try to auto-guess mapping for List Mode
-          const guessedListMapping = {
-            name: cols.find(c => c.toLowerCase().includes('nom') || c.toLowerCase().includes('name') || c.toLowerCase().includes('titre')) || '',
-            zone: cols.find(c => c.toLowerCase().includes('zone') || c.toLowerCase().includes('lieu') || c.toLowerCase().includes('emplacement')) || '',
-            type: cols.find(c => c.toLowerCase().includes('type') || c.toLowerCase().includes('modèle')) || '',
-            count: cols.find(c => c.toLowerCase().includes('quantit') || c.toLowerCase().includes('count') || c.toLowerCase().includes('qte')) || ''
-          };
-          setColumnMapping(guessedListMapping);
-
-          // Try to auto-guess mapping for Matrix Mode
-          const guessedMatrixMapping: Record<string, string> = {
-            zone: cols.find(c => c.toLowerCase().includes('emplacement') || c.toLowerCase().includes('zone') || c.toLowerCase().includes('lieu')) || ''
-          };
-          
-          let hasMatrixTypeCols = false;
-          binTypes.forEach(type => {
-            const matchedCol = cols.find(c => {
-               const cleanCol = c.toLowerCase();
-               const cleanLabel = type.label.toLowerCase();
-               return cleanCol.includes(cleanLabel) || 
-                      (cleanLabel.includes('1100l') && cleanCol.includes('4 roues') && !cleanCol.includes('point') && !type.id.includes('point')) ||
-                      (cleanLabel.includes('point déchet') && cleanCol.includes('point déchet')) ||
-                      (cleanLabel.includes('300l') && cleanCol.includes('300l')) ||
-                      (cleanLabel.includes('100l') && cleanCol.includes('150l') && type.id.includes('sans_roue')) ||
-                      (cleanLabel.includes('peintes') && cleanCol.includes('peintes'));
-            });
-            if (matchedCol) {
-               guessedMatrixMapping[type.id] = matchedCol;
-               hasMatrixTypeCols = true;
-            } else {
-               guessedMatrixMapping[type.id] = '';
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const jsonData = results.data as any[];
+            if (jsonData.length > 0) {
+              processImportedData(jsonData, Object.keys(jsonData[0]));
             }
-          });
-          setMatrixMapping(guessedMatrixMapping);
-
-          // If we found matrix columns but no type column, default to matrix mode
-          if (hasMatrixTypeCols && !guessedListMapping.type) {
-            setImportMode('matrix');
-          } else {
-            setImportMode('list');
           }
-        }
-      };
-      reader.readAsArrayBuffer(file);
+        });
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(firstSheet) as any[];
+          
+          if (jsonData.length > 0) {
+            processImportedData(jsonData, Object.keys(jsonData[0]));
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
     }
+  };
+
+  const processImportedData = (jsonData: any[], cols: string[]) => {
+    setColumns(cols);
+    setImportData(jsonData);
+
+    // Try to auto-guess mapping for Matrix Mode
+    const guessedMatrixMapping: Record<string, string> = {
+      zone: cols.find(c => c.toLowerCase().includes('emplacement') || c.toLowerCase().includes('zone') || c.toLowerCase().includes('lieu')) || ''
+    };
+    
+    binTypes.forEach(type => {
+      const matchedCol = cols.find(c => {
+         const cleanCol = c.toLowerCase().trim();
+         const cleanLabel = type.label.toLowerCase();
+         
+         const is1100l = type.id === '1100l';
+         const is1100lPoint = type.id === '1100l_point_dechet';
+         const is300l = type.id === '300l';
+         const is100l = type.id === '100l_sans_roue';
+         const is100lPeinte = type.id === '100l_peintes';
+         
+         if (is1100l && cleanCol === '4 roues') return true;
+         if (is1100lPoint && (cleanCol.includes('4 roues point déchet') || cleanCol.includes('4 roues point dechet') || cleanCol.includes('4 roues peinte'))) return true;
+         if (is300l && cleanCol.includes('2 roues 300l')) return true;
+         if (is100l && cleanCol.includes('2 roues 150l')) return true;
+         if (is100lPeinte && cleanCol.includes('2 roues peintes')) return true;
+
+         return cleanCol.includes(cleanLabel) || 
+                (cleanLabel.includes('1100l') && cleanCol.includes('4 roues') && !cleanCol.includes('point') && !type.id.includes('point') && !cleanCol.includes('peinte')) ||
+                (cleanLabel.includes('point déchet') && (cleanCol.includes('point déchet') || cleanCol.includes('point dechet'))) ||
+                (cleanLabel.includes('300l') && cleanCol.includes('300l')) ||
+                ((cleanLabel.includes('100l') || cleanLabel.includes('110l')) && cleanCol.includes('150l') && type.id.includes('sans_roue')) ||
+                (cleanLabel.includes('peintes') && cleanCol.includes('peintes'));
+      });
+      if (matchedCol) {
+         guessedMatrixMapping[type.id] = matchedCol;
+      } else {
+         guessedMatrixMapping[type.id] = '';
+      }
+    });
+
+    setMatrixMapping(guessedMatrixMapping);
   };
 
   const handleConfirmImport = () => {
@@ -148,47 +153,27 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
 
     let imported: any[] = [];
 
-    if (importMode === 'list') {
-      imported = importData.map(row => {
-        const rawType = columnMapping.type ? String(row[columnMapping.type] || '').toLowerCase() : '';
-        let matchedType = binTypes[0].id;
-        if (rawType.includes('100') && rawType.includes('peint')) matchedType = '100l_peintes';
-        else if (rawType.includes('100') && rawType.includes('roue')) matchedType = '100l_sans_roue';
-        else if (rawType.includes('300')) matchedType = '300l';
-        else if (rawType.includes('1100') && rawType.includes('point')) matchedType = '1100l_point_dechet';
-        else if (rawType.includes('1100')) matchedType = '1100l';
+    // Matrix mode
+    importData.forEach(row => {
+      const rowName = matrixMapping.zone ? String(row[matrixMapping.zone] || '').trim() : '';
+      if (!rowName) return;
 
-        return {
-          name: columnMapping.name ? String(row[columnMapping.name] || 'Poubelle Inconnue') : 'Poubelle Inconnue',
-          zone: columnMapping.zone ? String(row[columnMapping.zone] || 'Non définie') : 'Non définie',
-          status: 'to_install' as const,
-          type: matchedType,
-          count: columnMapping.count ? parseInt(row[columnMapping.count] || '1', 10) : 1,
-        };
-      }).filter(b => b.name !== 'Poubelle Inconnue' || b.zone !== 'Non définie');
-    } else {
-      // Matrix mode
-      importData.forEach(row => {
-        const zoneName = matrixMapping.zone ? String(row[matrixMapping.zone] || '').trim() : '';
-        if (!zoneName) return;
-
-        binTypes.forEach(type => {
-          const colName = matrixMapping[type.id];
-          if (colName && row[colName]) {
-            const count = parseInt(String(row[colName]), 10);
-            if (!isNaN(count) && count > 0) {
-              imported.push({
-                name: `${type.label} - ${zoneName}`,
-                zone: zoneName,
-                status: 'to_install' as const,
-                type: type.id,
-                count: count
-              });
-            }
+      binTypes.forEach(type => {
+        const colName = matrixMapping[type.id];
+        if (colName && row[colName]) {
+          const count = parseInt(String(row[colName]), 10);
+          if (!isNaN(count) && count > 0) {
+            imported.push({
+              name: rowName,
+              zone: 'Non définie',
+              status: 'to_install' as const,
+              type: type.id,
+              count: count
+            });
           }
-        });
+        }
       });
-    }
+    });
     
     if (imported.length > 0) {
       onImportBins(imported, groupStrategy);
@@ -406,85 +391,42 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
               )}
             </div>
           ) : importData ? (
-             <div className="bg-white p-6 rounded-2xl border border-[#E5E0D5] max-w-2xl mx-auto">
+              <div className="bg-white p-6 rounded-2xl border border-[#E5E0D5] max-w-2xl mx-auto">
                <h3 className="font-bold text-[#3C413A] mb-4 text-base">Correspondance des colonnes</h3>
                
-               <div className="flex bg-[#F9F8F6] p-1 rounded-lg mb-6">
-                 <button 
-                   onClick={() => setImportMode('list')}
-                   className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${importMode === 'list' ? 'bg-white shadow text-[#6B8E63]' : 'text-[#7A8275] hover:text-[#3C413A]'}`}
-                 >
-                   Mode Liste (1 ligne = 1 type)
-                 </button>
-                 <button 
-                   onClick={() => setImportMode('matrix')}
-                   className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${importMode === 'matrix' ? 'bg-white shadow text-[#6B8E63]' : 'text-[#7A8275] hover:text-[#3C413A]'}`}
-                 >
-                   Mode Tableau (Répartition par zone)
-                 </button>
-               </div>
-
-               {importMode === 'list' ? (
-                 <>
-                   <p className="text-sm text-[#7A8275] mb-6">Associez les colonnes de votre fichier aux données attendues pour chaque ligne.</p>
-                   <div className="space-y-4">
-                     {[
-                       { id: 'name', label: 'Nom de la poubelle (Requis)' },
-                       { id: 'zone', label: 'Zone / Emplacement' },
-                       { id: 'type', label: 'Type / Modèle' },
-                       { id: 'count', label: 'Quantité' },
-                     ].map(field => (
-                       <div key={field.id} className="flex items-center gap-4">
-                         <label className="w-1/3 text-sm font-bold text-[#3C413A]">{field.label}</label>
-                         <select 
-                           value={columnMapping[field.id as keyof typeof columnMapping]}
-                           onChange={e => setColumnMapping({...columnMapping, [field.id]: e.target.value})}
-                           className="flex-1 px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
-                         >
-                           <option value="">-- Ignorer --</option>
-                           {columns.map(col => <option key={col} value={col}>{col}</option>)}
-                         </select>
+               <p className="text-sm text-[#7A8275] mb-6">Dans ce mode, la colonne des emplacements sert de nom, et les autres colonnes représentent les quantités par type de poubelle.</p>
+               <div className="space-y-4">
+                 <div className="flex items-center gap-4">
+                   <label className="w-1/3 text-sm font-bold text-[#3C413A]">Colonne des Emplacements</label>
+                   <select 
+                     value={matrixMapping.zone}
+                     onChange={e => setMatrixMapping({...matrixMapping, zone: e.target.value})}
+                     className="flex-1 px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
+                   >
+                     <option value="">-- Sélectionner la colonne --</option>
+                     {columns.map(col => <option key={col} value={col}>{col}</option>)}
+                   </select>
+                 </div>
+                 <div className="pt-4 border-t border-[#E5E0D5]">
+                   <h4 className="text-xs font-bold text-[#7A8275] mb-4 uppercase tracking-wider">Colonnes des Types de poubelles</h4>
+                   {binTypes.map(type => (
+                     <div key={type.id} className="flex items-center gap-4 mb-3">
+                       <div className="w-1/3 flex items-center gap-2">
+                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: type.color }} />
+                         <label className="text-sm font-bold text-[#3C413A] truncate" title={type.label}>{type.label}</label>
                        </div>
-                     ))}
-                   </div>
-                 </>
-               ) : (
-                 <>
-                   <p className="text-sm text-[#7A8275] mb-6">Dans ce mode, chaque ligne correspond à une zone, et les colonnes représentent les quantités par type de poubelle.</p>
-                   <div className="space-y-4">
-                     <div className="flex items-center gap-4">
-                       <label className="w-1/3 text-sm font-bold text-[#3C413A]">Colonne des Emplacements</label>
                        <select 
-                         value={matrixMapping.zone}
-                         onChange={e => setMatrixMapping({...matrixMapping, zone: e.target.value})}
+                         value={matrixMapping[type.id] || ''}
+                         onChange={e => setMatrixMapping({...matrixMapping, [type.id]: e.target.value})}
                          className="flex-1 px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
                        >
-                         <option value="">-- Sélectionner la colonne --</option>
+                         <option value="">-- Ignorer ce type --</option>
                          {columns.map(col => <option key={col} value={col}>{col}</option>)}
                        </select>
                      </div>
-                     <div className="pt-4 border-t border-[#E5E0D5]">
-                       <h4 className="text-xs font-bold text-[#7A8275] mb-4 uppercase tracking-wider">Colonnes des Types de poubelles</h4>
-                       {binTypes.map(type => (
-                         <div key={type.id} className="flex items-center gap-4 mb-3">
-                           <div className="w-1/3 flex items-center gap-2">
-                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: type.color }} />
-                             <label className="text-sm font-bold text-[#3C413A] truncate" title={type.label}>{type.label}</label>
-                           </div>
-                           <select 
-                             value={matrixMapping[type.id] || ''}
-                             onChange={e => setMatrixMapping({...matrixMapping, [type.id]: e.target.value})}
-                             className="flex-1 px-3 py-2 border border-[#D9D3C7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B8E63]"
-                           >
-                             <option value="">-- Ignorer ce type --</option>
-                             {columns.map(col => <option key={col} value={col}>{col}</option>)}
-                           </select>
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 </>
-               )}
+                   ))}
+                 </div>
+               </div>
                
                <div className="mt-8 flex gap-4">
                  <button 
@@ -495,7 +437,7 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
                  </button>
                  <button 
                    onClick={handleConfirmImport}
-                   disabled={importMode === 'list' ? !columnMapping.name : !matrixMapping.zone}
+                   disabled={!matrixMapping.zone}
                    className="flex-1 py-3 bg-[#6B8E63] text-white font-bold rounded-xl hover:bg-[#5a7a53] transition-colors disabled:opacity-50"
                  >
                    Confirmer l'importation
