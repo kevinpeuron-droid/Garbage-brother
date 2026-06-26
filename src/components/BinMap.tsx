@@ -170,7 +170,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
         reader.onload = async (event) => {
           const typedarray = new Uint8Array(event.target?.result as ArrayBuffer);
           try {
-            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
             const page = await pdf.getPage(1);
             const scale = 2.0; // Render at higher resolution
             const viewport = page.getViewport({ scale });
@@ -183,6 +183,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
               
               const renderContext = {
                 canvasContext: context,
+                canvas: canvas,
                 viewport: viewport
               };
               

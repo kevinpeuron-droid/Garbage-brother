@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
 import SettingsView from "./components/SettingsView";
@@ -23,6 +23,53 @@ import {
   Clock,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 type ViewMode =
   | "map_pose"
@@ -49,9 +96,13 @@ export default function App() {
         if (data.overlayImages) _setOverlayImages(data.overlayImages);
       } else {
         // Initialize if empty
-        setDoc(docRef, { bins: mockBins, shapes: [], overlayImages: [] });
+        setDoc(docRef, { bins: mockBins, shapes: [], overlayImages: [] }).catch(err => {
+            handleFirestoreError(err, OperationType.WRITE, "maps/default");
+        });
       }
       setIsDbLoaded(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "maps/default");
     });
     return () => unsubscribe();
   }, []);
@@ -59,7 +110,7 @@ export default function App() {
   const setBins = (newBins: TrashBin[] | ((prev: TrashBin[]) => TrashBin[])) => {
     _setBins((prev) => {
       const updated = typeof newBins === 'function' ? newBins(prev) : newBins;
-      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { bins: updated }, { merge: true }).catch(console.error);
+      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { bins: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
       return updated;
     });
   };
@@ -67,7 +118,7 @@ export default function App() {
   const setShapes = (newShapes: MapShape[] | ((prev: MapShape[]) => MapShape[])) => {
     _setShapes((prev) => {
       const updated = typeof newShapes === 'function' ? newShapes(prev) : newShapes;
-      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { shapes: updated }, { merge: true }).catch(console.error);
+      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { shapes: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
       return updated;
     });
   };
@@ -75,7 +126,7 @@ export default function App() {
   const setOverlayImages = (newImages: any[] | ((prev: any[]) => any[])) => {
     _setOverlayImages((prev) => {
       const updated = typeof newImages === 'function' ? newImages(prev) : newImages;
-      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { overlayImages: updated }, { merge: true }).catch(console.error);
+      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { overlayImages: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
       return updated;
     });
   };
