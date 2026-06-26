@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from '../types';
 import MapDrawing from './MapDrawing';
 import MapEvents from './MapEvents';
-import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2 } from 'lucide-react';
+import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2, Lock, Unlock } from 'lucide-react';
 
 // Fix for default Leaflet markers in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -165,21 +165,51 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
       const reader = new FileReader();
       reader.onload = (event) => {
         const url = event.target?.result as string;
-        // Default bounds around the center [SouthWest, NorthEast]
-        const bounds: [[number, number], [number, number]] = [
-          [48.2670, -3.5600], // South-West
-          [48.2750, -3.5500]  // North-East
-        ];
-        onOverlayImagesChange([
-          ...overlayImages,
-          {
-            id: `img-${Date.now()}`,
-            url,
-            bounds,
-            opacity: 0.7,
-            locked: false
+        
+        // Compress image using canvas
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
           }
-        ]);
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedUrl = canvas.toDataURL('image/jpeg', 0.8); // 80% quality jpeg
+            
+            const bounds: [[number, number], [number, number]] = [
+              [48.2670, -3.5600],
+              [48.2750, -3.5500] 
+            ];
+            onOverlayImagesChange([
+              ...overlayImages,
+              {
+                id: `img-${Date.now()}`,
+                url: compressedUrl,
+                bounds,
+                opacity: 0.7,
+                locked: false
+              }
+            ]);
+          }
+        };
+        img.src = url;
       };
       reader.readAsDataURL(file);
     }
@@ -198,10 +228,12 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
   };
 
   const mapContent = (
-    <MapContainer center={[48.2710, -3.5550]} zoom={15} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId || calibration ? 'crosshair' : 'grab' }}>
+    <MapContainer center={[48.2710, -3.5550]} zoom={15} maxZoom={22} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId || calibration ? 'crosshair' : 'grab' }}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxNativeZoom={19}
+        maxZoom={22}
       />
       
       {overlayImages.map(img => (
@@ -397,7 +429,16 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
               {overlayImages.map((img, idx) => (
                 <div key={img.id} className="bg-[#F9F8F6] p-3 rounded-xl border border-[#E5E0D5]">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-[#4B6345]">Image {idx + 1}</span>
+                    <span className="text-xs font-bold text-[#4B6345] flex items-center gap-2">
+                      Image {idx + 1}
+                      <button 
+                        onClick={() => updateImage(img.id, { locked: !img.locked })}
+                        className={`p-1 rounded ${img.locked ? 'text-[#DC2626] bg-[#FEE2E2]' : 'text-[#7A8275] hover:bg-[#EBE7DF]'}`}
+                        title={img.locked ? "Déverrouiller" : "Verrouiller la position"}
+                      >
+                        {img.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                      </button>
+                    </span>
                     <button onClick={() => removeImage(img.id)} className="text-[#DC2626] hover:bg-[#FEE2E2] p-1 rounded">
                       <Trash2 size={14} />
                     </button>
@@ -418,76 +459,86 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
 
                     <div className="grid grid-cols-2 gap-2">
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0] + precision, sw[1]], [ne[0] + precision, ne[1]]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Haut"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Haut"
                       ><ArrowUp size={14} /></button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0] - precision, sw[1]], [ne[0] - precision, ne[1]]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Bas"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Bas"
                       ><ArrowDown size={14} /></button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0], sw[1] - precision], [ne[0], ne[1] - precision]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Gauche"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Gauche"
                       ><ArrowLeft size={14} /></button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0], sw[1] + precision], [ne[0], ne[1] + precision]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF]" title="Droite"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Droite"
                       ><ArrowRight size={14} /></button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0] - precision, sw[1] - precision], [ne[0] + precision, ne[1] + precision]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                       ><Maximize2 size={12} /> Agrandir</button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0] + precision, sw[1] + precision], [ne[0] - precision, ne[1] - precision]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                       ><Minus size={12} /> Rétrécir</button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0], sw[1] - precision], [ne[0], ne[1] + precision]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >↔ Largeur +</button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0], sw[1] + precision], [ne[0], ne[1] - precision]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >&gt;&lt; Largeur -</button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0] - precision, sw[1]], [ne[0] + precision, ne[1]]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >↕ Hauteur +</button>
                       <button 
+                        disabled={img.locked}
                         onClick={() => {
                           const [sw, ne] = img.bounds;
                           updateImage(img.id, { bounds: [[sw[0] + precision, sw[1]], [ne[0] - precision, ne[1]]] });
                         }}
-                        className="p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold"
+                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >&gt;&lt; Hauteur -</button>
                     </div>
                     
@@ -509,8 +560,9 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
                         </div>
                       ) : (
                         <button
+                          disabled={img.locked}
                           onClick={() => setCalibration({ imageId: img.id, step: 0 })}
-                          className="w-full py-1.5 bg-[#EBE7DF] border border-[#D9D3C7] text-[#4B6345] rounded-lg font-bold hover:bg-[#D9D3C7] transition-colors text-xs flex items-center justify-center gap-2"
+                          className={`w-full py-1.5 bg-[#EBE7DF] border border-[#D9D3C7] text-[#4B6345] rounded-lg font-bold hover:bg-[#D9D3C7] transition-colors text-xs flex items-center justify-center gap-2 ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <Crosshair size={14} /> Calibrer (2 points)
                         </button>

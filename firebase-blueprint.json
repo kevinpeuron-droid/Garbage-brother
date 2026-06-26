@@ -1,0 +1,31 @@
+{
+  "collections": [
+    {
+      "collection_name": "maps",
+      "description": "Shared map states",
+      "documents": [
+        {
+          "document_id": "default",
+          "description": "The default shared map",
+          "fields": [
+            {
+              "name": "bins",
+              "type": "array",
+              "description": "List of trash bins"
+            },
+            {
+              "name": "shapes",
+              "type": "array",
+              "description": "List of map shapes"
+            },
+            {
+              "name": "overlayImages",
+              "type": "array",
+              "description": "List of overlay images"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

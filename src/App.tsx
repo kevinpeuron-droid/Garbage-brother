@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { get, set } from "idb-keyval";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
 import SettingsView from "./components/SettingsView";
@@ -33,15 +34,51 @@ type ViewMode =
   | "hours";
 
 export default function App() {
-  const [bins, setBins] = useState<TrashBin[]>(() => {
-    const saved = localStorage.getItem("vcp-bins");
-    return saved ? JSON.parse(saved) : mockBins;
-  });
+  const [bins, _setBins] = useState<TrashBin[]>([]);
+  const [shapes, _setShapes] = useState<MapShape[]>([]);
+  const [overlayImages, _setOverlayImages] = useState<any[]>([]);
+  const [isDbLoaded, setIsDbLoaded] = useState(false);
 
-  const [shapes, setShapes] = useState<MapShape[]>(() => {
-    const saved = localStorage.getItem("vcp-shapes");
-    return saved ? JSON.parse(saved) : [];
-  });
+  useEffect(() => {
+    const docRef = doc(db, "maps", "default");
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.bins) _setBins(data.bins);
+        if (data.shapes) _setShapes(data.shapes);
+        if (data.overlayImages) _setOverlayImages(data.overlayImages);
+      } else {
+        // Initialize if empty
+        setDoc(docRef, { bins: mockBins, shapes: [], overlayImages: [] });
+      }
+      setIsDbLoaded(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const setBins = (newBins: TrashBin[] | ((prev: TrashBin[]) => TrashBin[])) => {
+    _setBins((prev) => {
+      const updated = typeof newBins === 'function' ? newBins(prev) : newBins;
+      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { bins: updated }, { merge: true }).catch(console.error);
+      return updated;
+    });
+  };
+
+  const setShapes = (newShapes: MapShape[] | ((prev: MapShape[]) => MapShape[])) => {
+    _setShapes((prev) => {
+      const updated = typeof newShapes === 'function' ? newShapes(prev) : newShapes;
+      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { shapes: updated }, { merge: true }).catch(console.error);
+      return updated;
+    });
+  };
+
+  const setOverlayImages = (newImages: any[] | ((prev: any[]) => any[])) => {
+    _setOverlayImages((prev) => {
+      const updated = typeof newImages === 'function' ? newImages(prev) : newImages;
+      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { overlayImages: updated }, { merge: true }).catch(console.error);
+      return updated;
+    });
+  };
 
   const [binTypes, setBinTypes] = useState<BinTypeConfig[]>(() => {
     const saved = localStorage.getItem("vcp-types");
@@ -53,43 +90,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [overlayImages, setOverlayImages] = useState<any[]>([]);
 
-  useEffect(() => {
-    get("vcp-overlays").then((saved) => {
-      if (saved) {
-        try {
-          setOverlayImages(JSON.parse(saved));
-        } catch (e) {
-          console.error("Failed to parse overlays from idb", e);
-        }
-      } else {
-        // Fallback to localStorage for backwards compatibility
-        const oldSaved = localStorage.getItem("vcp-overlays");
-        if (oldSaved) {
-          try {
-            setOverlayImages(JSON.parse(oldSaved));
-          } catch (e) {}
-        }
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    // Only save if it's already loaded to prevent overwriting with empty array on mount
-    if (overlayImages.length > 0) {
-      set("vcp-overlays", JSON.stringify(overlayImages)).catch(console.error);
-    } else {
-      // If we genuinely deleted all overlays, clear the db
-      get("vcp-overlays").then(saved => {
-        if (saved) {
-          // If we had something, and now it's empty, we must have deleted them.
-          // In a real app we might want a 'loaded' flag, but this is fine for now
-          set("vcp-overlays", JSON.stringify([])).catch(console.error);
-        }
-      });
-    }
-  }, [overlayImages]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("map_pose");
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
@@ -116,13 +117,7 @@ export default function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  useEffect(() => {
-    localStorage.setItem("vcp-bins", JSON.stringify(bins));
-  }, [bins]);
 
-  useEffect(() => {
-    localStorage.setItem("vcp-shapes", JSON.stringify(shapes));
-  }, [shapes]);
 
   useEffect(() => {
     localStorage.setItem("vcp-types", JSON.stringify(binTypes));
