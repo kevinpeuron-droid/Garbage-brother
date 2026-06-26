@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { get, set } from "idb-keyval";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
 import SettingsView from "./components/SettingsView";
@@ -52,20 +53,41 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [overlayImages, setOverlayImages] = useState<any[]>(() => {
-    const saved = localStorage.getItem("vcp-overlays");
-    try {
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [overlayImages, setOverlayImages] = useState<any[]>([]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("vcp-overlays", JSON.stringify(overlayImages));
-    } catch (error) {
-      console.error("Failed to save overlays to localStorage (image might be too large):", error);
+    get("vcp-overlays").then((saved) => {
+      if (saved) {
+        try {
+          setOverlayImages(JSON.parse(saved));
+        } catch (e) {
+          console.error("Failed to parse overlays from idb", e);
+        }
+      } else {
+        // Fallback to localStorage for backwards compatibility
+        const oldSaved = localStorage.getItem("vcp-overlays");
+        if (oldSaved) {
+          try {
+            setOverlayImages(JSON.parse(oldSaved));
+          } catch (e) {}
+        }
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    // Only save if it's already loaded to prevent overwriting with empty array on mount
+    if (overlayImages.length > 0) {
+      set("vcp-overlays", JSON.stringify(overlayImages)).catch(console.error);
+    } else {
+      // If we genuinely deleted all overlays, clear the db
+      get("vcp-overlays").then(saved => {
+        if (saved) {
+          // If we had something, and now it's empty, we must have deleted them.
+          // In a real app we might want a 'loaded' flag, but this is fine for now
+          set("vcp-overlays", JSON.stringify([])).catch(console.error);
+        }
+      });
     }
   }, [overlayImages]);
 

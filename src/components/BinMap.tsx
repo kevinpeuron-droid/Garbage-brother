@@ -99,6 +99,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
   const [calibration, setCalibration] = useState<CalibrationState | null>(null);
 
   const [precision, setPrecision] = useState(0.0005);
+  const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMapClick = (lat: number, lng: number) => {
     if (calibration) {
@@ -218,25 +219,43 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
       {calibration?.img2 && <CircleMarker center={calibration.img2} radius={5} pathOptions={{ color: '#DC2626', fillColor: '#DC2626', fillOpacity: 0.8 }} />}
 
       <MapDrawing shapes={shapes} onShapesChange={onShapesChange} />
-      <MapEvents onMapClick={handleMapClick} />
+      <MapEvents onMapClick={handleMapClick} onZoomChange={setZoomLevel} />
       
       {shapes.map((shape) => {
         const pathOptions = { color: shape.color, weight: 2, fillColor: shape.color, fillOpacity: 0.2 };
         const popupContent = (
           <Popup>
             <div className="p-1 min-w-[150px] text-[#3C413A] font-sans">
-              <h3 className="font-bold text-sm mb-3 text-[#4B6345]">{shape.name}</h3>
+              <input 
+                type="text" 
+                value={shape.name}
+                onChange={(e) => onShapesChange(shapes.map(s => s.id === shape.id ? { ...s, name: e.target.value } : s))}
+                className="w-full font-bold text-sm mb-3 text-[#4B6345] border-b border-[#D9D3C7] focus:outline-none focus:border-[#6B8E63] bg-transparent"
+                placeholder="Nom de la forme"
+              />
               <div className="flex flex-col gap-2">
                 <button 
                   onClick={() => {
-                    // Quick and dirty inline rename without prompt
-                    const newName = "Zone Renommée " + Math.floor(Math.random() * 100);
-                    onShapesChange(shapes.map(s => s.id === shape.id ? { ...s, name: newName } : s));
+                    let duplicatedPositions;
+                    if (shape.type === 'polygon') {
+                      duplicatedPositions = shape.positions.map(p => [p[0] - 0.0005, p[1] + 0.0005] as [number, number]);
+                    } else {
+                      const bounds = shape.positions as [[number, number], [number, number]];
+                      duplicatedPositions = [
+                        [bounds[0][0] - 0.0005, bounds[0][1] + 0.0005],
+                        [bounds[1][0] - 0.0005, bounds[1][1] + 0.0005]
+                      ] as [[number, number], [number, number]];
+                    }
+                    onShapesChange([...shapes, {
+                      ...shape,
+                      id: `shape-${Date.now()}`,
+                      name: `${shape.name} (copie)`,
+                      positions: duplicatedPositions
+                    }]);
                   }} 
                   className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"
-                  title="Renommer rapidement (aléatoire pour contourner la restriction de sécurité)"
                 >
-                  Renommer (Auto)
+                  Dupliquer
                 </button>
                 <button 
                   onClick={() => {
@@ -255,7 +274,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
           return (
             <Polygon key={shape.id} positions={shape.positions} pathOptions={pathOptions}>
               {popupContent}
-              <Tooltip permanent direction="center" className="bg-transparent border-0 shadow-none text-[#916738] font-bold text-sm text-center">
+              <Tooltip permanent direction="center" className={`bg-transparent border-0 shadow-none text-[#916738] font-bold text-sm text-center ${zoomLevel < 15 ? 'hidden' : ''}`}>
                 {shape.name}
               </Tooltip>
             </Polygon>
@@ -265,7 +284,7 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
           return (
             <Rectangle key={shape.id} bounds={shape.positions as L.LatLngBoundsLiteral} pathOptions={pathOptions}>
               {popupContent}
-              <Tooltip permanent direction="center" className="bg-transparent border-0 shadow-none text-[#916738] font-bold text-sm text-center">
+              <Tooltip permanent direction="center" className={`bg-transparent border-0 shadow-none text-[#916738] font-bold text-sm text-center ${zoomLevel < 15 ? 'hidden' : ''}`}>
                 {shape.name}
               </Tooltip>
             </Rectangle>
