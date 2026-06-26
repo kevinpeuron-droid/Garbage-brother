@@ -1,10 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, Tooltip, ImageOverlay, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
+import * as pdfjsLib from 'pdfjs-dist';
 import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from '../types';
 import MapDrawing from './MapDrawing';
 import MapEvents from './MapEvents';
 import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2, Lock, Unlock } from 'lucide-react';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 // Fix for default Leaflet markers in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -159,59 +162,105 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
 
   const unplacedBins = bins.filter(b => b.lat === null || b.lng === null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onOverlayImagesChange) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const url = event.target?.result as string;
-        
-        // Compress image using canvas
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1200;
-          const MAX_HEIGHT = 1200;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedUrl = canvas.toDataURL('image/jpeg', 0.8); // 80% quality jpeg
+      if (file.type === 'application/pdf') {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const typedarray = new Uint8Array(event.target?.result as ArrayBuffer);
+          try {
+            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            const page = await pdf.getPage(1);
+            const scale = 2.0; // Render at higher resolution
+            const viewport = page.getViewport({ scale });
             
-            const bounds: [[number, number], [number, number]] = [
-              [48.2670, -3.5600],
-              [48.2750, -3.5500] 
-            ];
-            onOverlayImagesChange([
-              ...overlayImages,
-              {
-                id: `img-${Date.now()}`,
-                url: compressedUrl,
-                bounds,
-                opacity: 0.7,
-                locked: false
-              }
-            ]);
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            if (context) {
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              
+              const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+              };
+              
+              await page.render(renderContext).promise;
+              const url = canvas.toDataURL('image/jpeg', 0.8);
+              
+              const bounds: [[number, number], [number, number]] = [
+                [48.2670, -3.5600],
+                [48.2750, -3.5500] 
+              ];
+              onOverlayImagesChange([
+                ...overlayImages,
+                {
+                  id: `img-${Date.now()}`,
+                  url,
+                  bounds,
+                  opacity: 0.7,
+                  locked: false
+                }
+              ]);
+            }
+          } catch (err) {
+            console.error('Error rendering PDF', err);
           }
         };
-        img.src = url;
-      };
-      reader.readAsDataURL(file);
+        reader.readAsArrayBuffer(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const url = event.target?.result as string;
+          
+          // Compress image using canvas
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1200;
+            const MAX_HEIGHT = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const compressedUrl = canvas.toDataURL('image/jpeg', 0.8); // 80% quality jpeg
+              
+              const bounds: [[number, number], [number, number]] = [
+                [48.2670, -3.5600],
+                [48.2750, -3.5500] 
+              ];
+              onOverlayImagesChange([
+                ...overlayImages,
+                {
+                  id: `img-${Date.now()}`,
+                  url: compressedUrl,
+                  bounds,
+                  opacity: 0.7,
+                  locked: false
+                }
+              ]);
+            }
+          };
+          img.src = url;
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -418,10 +467,10 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
             </div>
 
             <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-[#D9D3C7] rounded-xl hover:border-[#6B8E63] hover:bg-[#F9F8F6] transition-colors cursor-pointer mb-4">
-              <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              <input type="file" accept="image/*,application/pdf" onChange={handleImageUpload} className="hidden" />
               <div className="text-center">
                 <Plus size={24} className="mx-auto text-[#7A8275] mb-1" />
-                <span className="text-xs font-bold text-[#7A8275]">Ajouter une image</span>
+                <span className="text-xs font-bold text-[#7A8275]">Ajouter une image ou PDF</span>
               </div>
             </label>
 
