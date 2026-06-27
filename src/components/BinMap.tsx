@@ -102,6 +102,43 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
   const urgentPoseBins = bins.filter(b => b.urgentPlacement && b.status === 'to_install');
   const urgentDeposeBins = placedBins.filter(b => b.urgentRemoval && b.status === 'to_remove');
 
+  const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const UmapSync = () => {
+    const map = useMap();
+    
+    React.useEffect(() => {
+      const fixedCenter = L.latLng(48.271993, -3.560402);
+      const fixedZoom = 17;
+      
+      const onMove = () => {
+        if (!iframeRef.current) return;
+        
+        const pt = map.latLngToContainerPoint(fixedCenter);
+        const container = map.getContainer();
+        const hw = container.clientWidth / 2;
+        const hh = container.clientHeight / 2;
+        
+        const tx = pt.x - hw;
+        const ty = pt.y - hh;
+        
+        const scale = Math.pow(2, map.getZoom() - fixedZoom);
+        
+        iframeRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        iframeRef.current.style.transformOrigin = 'center center';
+      };
+
+      map.on('move zoom', onMove);
+      onMove(); // initial update
+      
+      return () => {
+        map.off('move zoom', onMove);
+      };
+    }, [map]);
+    return null;
+  };
+
   const MapCenterer = () => {
     const map = useMap();
     React.useEffect(() => {
@@ -132,11 +169,15 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
 
   const mapContent = (
     <div className="relative w-full h-full bg-[#E5E0D5] overflow-hidden">
-      <MapContainer center={[48.271993, -3.560402]} zoom={17} minZoom={15} maxZoom={19} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId ? 'crosshair' : 'grab' }}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      <iframe
+        ref={iframeRef}
+        src={`${umapBaseUrl}#17/48.271993/-3.560402`}
+        className="absolute z-0 pointer-events-none"
+        style={{ width: '400%', height: '400%', top: '-150%', left: '-150%', border: 'none' }}
+        title="Umap Background"
+      />
+      <MapContainer center={[48.271993, -3.560402]} zoom={17} minZoom={15} maxZoom={19} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: 'transparent', cursor: placingBinId ? 'crosshair' : 'grab' }}>
+        <UmapSync />
         <MapCenterer />
 
         <MapEvents onMapClick={handleMapClick} onZoomChange={setZoomLevel} />
