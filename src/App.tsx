@@ -3,7 +3,6 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
-import VisitorListView from "./components/VisitorListView";
 import SettingsView from "./components/SettingsView";
 import HoursView from "./components/HoursView";
 import {
