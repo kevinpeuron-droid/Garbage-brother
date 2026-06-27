@@ -5,7 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from '../types';
 import MapDrawing from './MapDrawing';
 import MapEvents from './MapEvents';
-import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2, Lock, Unlock, AlertTriangle, Map } from 'lucide-react';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -91,6 +91,7 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
   });
 
   const [zoomLevel, setZoomLevel] = useState(15);
+  const [isUmapInteractive, setIsUmapInteractive] = useState(false);
 
   const handleMapClick = (lat: number, lng: number) => {
     if (onSelectBin) onSelectBin(null);
@@ -102,8 +103,11 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
   const urgentPoseBins = bins.filter(b => b.urgentPlacement && b.status === 'to_install');
   const urgentDeposeBins = placedBins.filter(b => b.urgentRemoval && b.status === 'to_remove');
 
-  const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=true&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
+  const iframe1Ref = useRef<HTMLIFrameElement>(null);
+  const iframe2Ref = useRef<HTMLIFrameElement>(null);
+  const activeIframeRef = useRef<1 | 2>(1);
+  const [activeIframe, setActiveIframe] = useState<1 | 2>(1);
 
   const MapCenterer = () => {
     const map = useMap();
@@ -123,8 +127,10 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
         }
       };
       map.on('dragstart', handleDragStart);
+      map.on('zoomstart', handleDragStart);
       return () => {
         map.off('dragstart', handleDragStart);
+        map.off('zoomstart', handleDragStart);
       };
     }, [map, selectedBinId, onSelectBin]);
 
@@ -135,47 +141,116 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
     const map = useMap();
     
     React.useEffect(() => {
+      let isDragging = false;
+      let startCenter: L.LatLng | null = null;
+      let startZoom: number = 0;
+      let syncTimeout: NodeJS.Timeout;
+      
       const updateIframe = () => {
-        if (iframeRef.current && iframeRef.current.contentWindow) {
-          const center = map.getCenter();
-          const zoom = map.getZoom();
-          // Use postMessage or just replace location if it's same origin, but it's cross origin.
-          // Changing src causes a reload. But changing src hash might not cause a reload in some browsers.
-          // Let's just try changing the src directly.
-          iframeRef.current.src = `${umapBaseUrl}#${zoom}/${center.lat}/${center.lng}`;
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const newUrl = `${umapBaseUrl}#${zoom}/${center.lat}/${center.lng}`;
+        
+        const currentActive = activeIframeRef.current;
+        const nextActive = currentActive === 1 ? 2 : 1;
+        const currentIframe = currentActive === 1 ? iframe1Ref.current : iframe2Ref.current;
+        const nextIframe = nextActive === 1 ? iframe1Ref.current : iframe2Ref.current;
+        
+        if (nextIframe && currentIframe) {
+          // Pre-load the new url on the hidden iframe
+          nextIframe.src = newUrl;
+          
+          clearTimeout(syncTimeout);
+          syncTimeout = setTimeout(() => {
+            if (isDragging) return; // Abort swap if user started dragging again
+            
+            // Swap visibility
+            activeIframeRef.current = nextActive as 1 | 2;
+            setActiveIframe(nextActive as 1 | 2);
+            
+            // Clear transform on the newly active one since it has the correct center now
+            nextIframe.style.transform = 'none';
+          }, 800); // 800ms is enough for uMap to render and finish its pan animation
         }
       };
 
-      map.on('moveend', updateIframe);
-      map.on('zoomend', updateIframe);
+      const handleDragStart = () => {
+        isDragging = true;
+        startCenter = map.getCenter();
+        startZoom = map.getZoom();
+        
+        // Reset transform origin for the currently active iframe
+        const currentIframe = activeIframeRef.current === 1 ? iframe1Ref.current : iframe2Ref.current;
+        if (currentIframe) {
+          currentIframe.style.transform = 'none';
+        }
+      };
+
+      const handleMove = () => {
+        if (!isDragging || !startCenter) return;
+        
+        const currentIframe = activeIframeRef.current === 1 ? iframe1Ref.current : iframe2Ref.current;
+        if (!currentIframe) return;
+        
+        const centerPos = map.latLngToContainerPoint(map.getCenter());
+        const startPos = map.latLngToContainerPoint(startCenter); 
+        
+        const dx = startPos.x - centerPos.x;
+        const dy = startPos.y - centerPos.y;
+        const scale = Math.pow(2, map.getZoom() - startZoom);
+        
+        currentIframe.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+        currentIframe.style.transformOrigin = `center center`;
+      };
+
+      const handleDragEnd = () => {
+        isDragging = false;
+        updateIframe();
+      };
+
+      map.on('movestart zoomstart', handleDragStart);
+      map.on('move zoom', handleMove);
+      map.on('moveend zoomend', handleDragEnd);
       
       // Initialize
       updateIframe();
       
       return () => {
-        map.off('moveend', updateIframe);
-        map.off('zoomend', updateIframe);
+        map.off('movestart zoomstart', handleDragStart);
+        map.off('move zoom', handleMove);
+        map.off('moveend zoomend', handleDragEnd);
+        clearTimeout(syncTimeout);
       };
     }, [map]);
     return null;
   };
 
   const mapContent = (
-    <div className="relative w-full h-full bg-[#E5E0D5]">
+    <div className="relative w-full h-full bg-[#E5E0D5] overflow-hidden">
       <iframe
-        ref={iframeRef}
+        ref={iframe1Ref}
         src={`${umapBaseUrl}#17/48.271993/-3.560402`}
-        className="absolute inset-0 w-full h-full z-0 pointer-events-none"
+        className={`absolute ${isUmapInteractive && activeIframe === 1 ? 'z-[10] pointer-events-auto' : 'z-0 pointer-events-none'}`}
+        style={isUmapInteractive && activeIframe === 1 ? { width: '100%', height: '100%', top: '0', left: '0', transform: 'none' } : { width: '300%', height: '300%', top: '-100%', left: '-100%', opacity: activeIframe === 1 ? 1 : 0, zIndex: activeIframe === 1 ? 0 : -1, transition: 'opacity 0.2s' }}
         frameBorder="0"
         allowFullScreen
       />
-      <MapContainer center={[48.271993, -3.560402]} zoom={17} maxZoom={20} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: 'transparent', cursor: placingBinId ? 'crosshair' : 'grab' }}>
-        <UmapSync />
-        <MapCenterer />
+      <iframe
+        ref={iframe2Ref}
+        src={`${umapBaseUrl}#17/48.271993/-3.560402`}
+        className={`absolute ${isUmapInteractive && activeIframe === 2 ? 'z-[10] pointer-events-auto' : 'z-0 pointer-events-none'}`}
+        style={isUmapInteractive && activeIframe === 2 ? { width: '100%', height: '100%', top: '0', left: '0', transform: 'none' } : { width: '300%', height: '300%', top: '-100%', left: '-100%', opacity: activeIframe === 2 ? 1 : 0, zIndex: activeIframe === 2 ? 0 : -1, transition: 'opacity 0.2s' }}
+        frameBorder="0"
+        allowFullScreen
+      />
+      <div className={`absolute inset-0 z-[1] transition-opacity ${isUmapInteractive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <MapContainer center={[48.271993, -3.560402]} zoom={17} minZoom={16} maxZoom={19} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: 'transparent', cursor: placingBinId ? 'crosshair' : 'grab' }}>
+          <UmapSync />
+          <MapCenterer />
 
-      <MapEvents onMapClick={handleMapClick} onZoomChange={setZoomLevel} />
-      
-      {placedBins.map((bin) => {
+        <MapEvents onMapClick={handleMapClick} onZoomChange={setZoomLevel} />
+        
+        {placedBins.map((bin) => {
         const typeConfig = binTypes.find(t => t.id === bin.type);
         const { fillColor, borderColor } = getBinStyle(bin, binTypes);
         return (
@@ -255,6 +330,18 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
         );
       })}
     </MapContainer>
+    </div>
+    
+    <div className="absolute bottom-6 left-4 z-[2000]">
+      <button
+        onClick={() => setIsUmapInteractive(!isUmapInteractive)}
+        className={`px-4 py-2 rounded-xl shadow-lg font-bold text-sm flex items-center gap-2 transition-colors ${isUmapInteractive ? 'bg-[#4B6345] text-white' : 'bg-white text-[#4B6345] border border-[#E5E0D5] hover:bg-[#F4F1EA]'}`}
+      >
+        <Map size={18} />
+        {isUmapInteractive ? 'Fermer le fond de carte' : 'Changer de fond de carte'}
+      </button>
+    </div>
+
     {overflowingBins.length > 0 && (
       <div className="absolute top-4 left-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#DC2626] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FEE2E2]">
