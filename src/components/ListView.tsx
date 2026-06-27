@@ -8,13 +8,14 @@ import { useDropzone } from 'react-dropzone';
 interface ListViewProps {
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
-  onImportBins: (importedBins: Omit<TrashBin, 'id' | 'lat' | 'lng' | 'lastEmptied'>[], groupStrategy: 'group' | 'individual') => void;
+  onImportBins: (importedBins: Omit<TrashBin, 'id' | 'lastEmptied'>[], groupStrategy: 'group' | 'individual') => void;
   onStartPlacing: (binId: string) => void;
   onDeleteBin: (id: string) => void;
   onAddBin: (bin: Omit<TrashBin, 'id'>) => void;
+  onUpdateBinTypes?: (types: BinTypeConfig[]) => void;
 }
 
-export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onAddBin }: ListViewProps) {
+export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onAddBin, onUpdateBinTypes }: ListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
   const [groupStrategy, setGroupStrategy] = useState<'group' | 'individual'>('group');
@@ -27,6 +28,7 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
   });
 
   const [importData, setImportData] = useState<any[] | null>(null);
+  const [pendingGeoJson, setPendingGeoJson] = useState<any[] | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [matrixMapping, setMatrixMapping] = useState<Record<string, string>>({
     zone: ''
@@ -77,7 +79,24 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
   };  const onDrop = (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
-      if (file.name.toLowerCase().endsWith('.csv')) {
+      if (file.name.toLowerCase().endsWith('.geojson') || file.name.toLowerCase().endsWith('.json')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const geojson = JSON.parse(e.target?.result as string);
+            if (geojson.type === 'FeatureCollection' && geojson.features) {
+              processGeoJSON(geojson.features);
+            } else if (Array.isArray(geojson)) {
+               processGeoJSON(geojson);
+            } else if (geojson.type === 'Feature') {
+               processGeoJSON([geojson]);
+            }
+          } catch (err) {
+            console.error("Error parsing GeoJSON", err);
+          }
+        };
+        reader.readAsText(file);
+      } else if (file.name.toLowerCase().endsWith('.csv')) {
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
@@ -105,6 +124,80 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
     }
   };
 
+  const processGeoJSON = (features: any[]) => {
+    let newBinTypes = [...binTypes];
+    let typesChanged = false;
+    
+    const imported: any[] = [];
+    
+    const processPoint = (lat: number, lng: number, props: any) => {
+      const name = props.name || 'Poubelle Inconnue';
+      const typeLabel = props.name || 'Standard';
+      const typeId = typeLabel.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      
+      const umapOptions = props._umap_options || {};
+      let typeColor = umapOptions.color || props.color;
+      
+      if (!typeColor) {
+        const existing = newBinTypes.find(t => t.id === typeId);
+        if (existing) {
+          typeColor = existing.color;
+        } else {
+          const colors = ['#60A5FA', '#FBBF24', '#34D399', '#FB923C', '#1E3A8A', '#9ca3af', '#c084fc', '#f43f5e'];
+          typeColor = colors[newBinTypes.length % colors.length];
+        }
+      }
+      
+      if (!newBinTypes.find(t => t.id === typeId)) {
+        newBinTypes.push({
+          id: typeId,
+          label: typeLabel,
+          color: typeColor
+        });
+        typesChanged = true;
+      }
+      
+      imported.push({
+        name,
+        zone: props.description || 'Non définie',
+        status: 'to_install',
+        type: typeId,
+        count: 1,
+        lat,
+        lng
+      });
+    };
+
+    features.forEach(feature => {
+       const props = feature.properties || {};
+       if (feature.geometry && feature.geometry.type === 'Point') {
+         const [lng, lat] = feature.geometry.coordinates;
+         processPoint(lat, lng, props);
+       } else if (feature.geometry && feature.geometry.type === 'LineString') {
+         feature.geometry.coordinates.forEach((coord: number[]) => {
+            const [lng, lat] = coord;
+            processPoint(lat, lng, props);
+         });
+       }
+    });
+    
+    if (typesChanged && onUpdateBinTypes) {
+       onUpdateBinTypes(newBinTypes);
+    }
+    
+    if (imported.length > 0) {
+      setPendingGeoJson(imported);
+      setActiveTab('import');
+    }
+  };
+
+  const handleConfirmGeoJsonImport = () => {
+    if (!pendingGeoJson) return;
+    onImportBins(pendingGeoJson, 'individual');
+    setPendingGeoJson(null);
+    setActiveTab('list');
+  };
+
   const processImportedData = (jsonData: any[], cols: string[]) => {
     setColumns(cols);
     setImportData(jsonData);
@@ -117,7 +210,6 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
     binTypes.forEach(type => {
       const matchedCol = cols.find(c => {
          const cleanCol = c.toLowerCase().trim();
-         const cleanLabel = type.label.toLowerCase();
          
          const is1100l = type.id === '1100l';
          const is1100lPoint = type.id === '1100l_point_dechet';
@@ -126,16 +218,18 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
          const is100lPeinte = type.id === '100l_peintes';
          
          if (is1100l && cleanCol === '4 roues') return true;
-         if (is1100lPoint && (cleanCol.includes('4 roues point déchet') || cleanCol.includes('4 roues point dechet') || cleanCol.includes('4 roues peinte'))) return true;
+         if (is1100lPoint && (cleanCol.includes('4 roues poin') || cleanCol.includes('4 roues point'))) return true;
          if (is300l && cleanCol.includes('2 roues 300l')) return true;
-         if (is100l && cleanCol.includes('2 roues 150l')) return true;
+         if (is100l && cleanCol === '2 roues') return true;
          if (is100lPeinte && cleanCol.includes('2 roues peintes')) return true;
 
+         // Fallbacks
+         const cleanLabel = type.label.toLowerCase();
          return cleanCol.includes(cleanLabel) || 
-                (cleanLabel.includes('1100l') && cleanCol.includes('4 roues') && !cleanCol.includes('point') && !type.id.includes('point') && !cleanCol.includes('peinte')) ||
-                (cleanLabel.includes('point déchet') && (cleanCol.includes('point déchet') || cleanCol.includes('point dechet'))) ||
+                (cleanLabel.includes('1100l') && cleanCol.includes('4 roues') && !cleanCol.includes('point') && !type.id.includes('point') && !cleanCol.includes('peinte') && !cleanCol.includes('poin')) ||
+                (cleanLabel.includes('point déchet') && (cleanCol.includes('point déchet') || cleanCol.includes('point dechet') || cleanCol.includes('poin'))) ||
                 (cleanLabel.includes('300l') && cleanCol.includes('300l')) ||
-                ((cleanLabel.includes('100l') || cleanLabel.includes('110l')) && cleanCol.includes('150l') && type.id.includes('sans_roue')) ||
+                ((cleanLabel.includes('100l') || cleanLabel.includes('110l')) && (cleanCol.includes('150l') || cleanCol === '2 roues') && type.id.includes('sans_roue')) ||
                 (cleanLabel.includes('peintes') && cleanCol.includes('peintes'));
       });
       if (matchedCol) {
@@ -186,7 +280,10 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
     onDrop, 
     accept: { 
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 
-      'application/vnd.ms-excel': ['.xls'] 
+      'application/vnd.ms-excel': ['.xls'],
+      'text/csv': ['.csv'],
+      'application/geo+json': ['.geojson'],
+      'application/json': ['.json']
     } 
   } as any);
 
@@ -390,6 +487,59 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
                 </div>
               )}
             </div>
+          ) : pendingGeoJson ? (
+              <div className="bg-white p-6 rounded-2xl border border-[#E5E0D5] max-w-4xl mx-auto">
+                <h3 className="font-bold text-[#3C413A] mb-4 text-base">Aperçu de l'import GeoJSON</h3>
+                <p className="text-sm text-[#7A8275] mb-6">Voici les {pendingGeoJson.length} éléments détectés dans le fichier.</p>
+                <div className="max-h-96 overflow-y-auto mb-6">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-[#F4F1EA] sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 font-bold text-[#4B6345]">Nom</th>
+                        <th className="px-4 py-2 font-bold text-[#4B6345]">Zone/Desc</th>
+                        <th className="px-4 py-2 font-bold text-[#4B6345]">Type</th>
+                        <th className="px-4 py-2 font-bold text-[#4B6345]">Coordonnées</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E0D5]">
+                      {pendingGeoJson.map((bin, i) => {
+                        const typeConfig = binTypes.find(t => t.id === bin.type);
+                        return (
+                          <tr key={i} className="hover:bg-[#F9F8F6]">
+                            <td className="px-4 py-2 font-medium">{bin.name}</td>
+                            <td className="px-4 py-2 text-[#7A8275]">{bin.zone}</td>
+                            <td className="px-4 py-2">
+                              {typeConfig ? (
+                                <span className="px-2 py-1 rounded font-bold uppercase text-[10px] border" style={{ borderColor: typeConfig.color, color: typeConfig.color }}>
+                                  {typeConfig.label}
+                                </span>
+                              ) : bin.type}
+                            </td>
+                            <td className="px-4 py-2 text-[#7A8275] text-[10px] font-mono">
+                              {bin.lat.toFixed(5)}, {bin.lng.toFixed(5)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className="mt-8 flex gap-4">
+                  <button 
+                    onClick={() => setPendingGeoJson(null)}
+                    className="flex-1 py-3 bg-[#EBE7DF] text-[#7A8275] font-bold rounded-xl hover:bg-[#D9D3C7] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    onClick={handleConfirmGeoJsonImport}
+                    className="flex-1 py-3 bg-[#6B8E63] text-white font-bold rounded-xl hover:bg-[#5a7a53] transition-colors"
+                  >
+                    Confirmer l'importation ({pendingGeoJson.length})
+                  </button>
+                </div>
+              </div>
           ) : importData ? (
               <div className="bg-white p-6 rounded-2xl border border-[#E5E0D5] max-w-2xl mx-auto">
                <h3 className="font-bold text-[#3C413A] mb-4 text-base">Correspondance des colonnes</h3>

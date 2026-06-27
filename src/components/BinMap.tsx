@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, Tooltip, ImageOverlay, CircleMarker } from 'react-leaflet';
+import { MapContainer, Marker, Popup, Polygon, Rectangle, Tooltip, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from '../types';
 import MapDrawing from './MapDrawing';
 import MapEvents from './MapEvents';
-import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2, Lock, Unlock } from 'lucide-react';
+import { Trash2, Plus, Image as ImageIcon, Crosshair, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Minus, Maximize2, Lock, Unlock, AlertTriangle } from 'lucide-react';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -63,21 +63,18 @@ const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
 
 interface BinMapProps {
   bins: TrashBin[];
-  shapes: MapShape[];
   binTypes: BinTypeConfig[];
   mode: 'map_pose' | 'map_depose' | 'map_exploitation' | 'map_edition';
   onUpdateStatus: (id: string, status: TrashBin['status']) => void;
-  onShapesChange: (shapes: MapShape[]) => void;
   selectedBinId: string | null;
+  onSelectBin?: (id: string) => void;
   placingBinId: string | null;
   onPlaceBin: (lat: number, lng: number) => void;
   onDeleteBin: (id: string) => void;
   onStartPlacing?: (id: string) => void;
-  overlayImages?: OverlayImage[];
-  onOverlayImagesChange?: (images: OverlayImage[]) => void;
 }
 
-export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, onShapesChange, selectedBinId, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing, overlayImages = [], onOverlayImagesChange }: BinMapProps) {
+export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedBinId, onSelectBin, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing }: BinMapProps) {
   // Filter bins based on mode to keep the map clear
   const placedBins = bins.filter(b => b.lat !== null && b.lng !== null).filter(b => {
     if (mode === 'map_pose') {
@@ -92,289 +89,75 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
     return true;
   });
 
-  type CalibrationState = {
-    imageId: string;
-    step: number; // 0: img1, 1: map1, 2: img2, 3: map2
-    img1?: [number, number];
-    map1?: [number, number];
-    img2?: [number, number];
-  };
-  const [calibration, setCalibration] = useState<CalibrationState | null>(null);
-
-  const [precision, setPrecision] = useState(0.0005);
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMapClick = (lat: number, lng: number) => {
-    if (calibration) {
-      const image = overlayImages.find(img => img.id === calibration.imageId);
-      if (!image) {
-        setCalibration(null);
-        return;
-      }
-      
-      if (calibration.step === 0) {
-        setCalibration({ ...calibration, step: 1, img1: [lat, lng] });
-      } else if (calibration.step === 1) {
-        setCalibration({ ...calibration, step: 2, map1: [lat, lng] });
-      } else if (calibration.step === 2) {
-        setCalibration({ ...calibration, step: 3, img2: [lat, lng] });
-      } else if (calibration.step === 3) {
-        const img1 = calibration.img1!;
-        const map1 = calibration.map1!;
-        const img2 = calibration.img2!;
-        const map2 = [lat, lng] as [number, number];
-    
-        const [SW, NE] = image.bounds;
-    
-        const pct_x1 = (img1[1] - SW[1]) / (NE[1] - SW[1]);
-        const pct_y1 = (img1[0] - SW[0]) / (NE[0] - SW[0]);
-        
-        const pct_x2 = (img2[1] - SW[1]) / (NE[1] - SW[1]);
-        const pct_y2 = (img2[0] - SW[0]) / (NE[0] - SW[0]);
-    
-        if (Math.abs(pct_x2 - pct_x1) < 0.01 || Math.abs(pct_y2 - pct_y1) < 0.01) {
-          alert("Les points sont trop proches. Veuillez réessayer avec des points plus éloignés.");
-          setCalibration({ imageId: calibration.imageId, step: 0 });
-          return;
-        }
-    
-        const W = (map2[1] - map1[1]) / (pct_x2 - pct_x1);
-        const new_SW_lng = map1[1] - pct_x1 * W;
-        const new_NE_lng = new_SW_lng + W;
-    
-        const H = (map2[0] - map1[0]) / (pct_y2 - pct_y1);
-        const new_SW_lat = map1[0] - pct_y1 * H;
-        const new_NE_lat = new_SW_lat + H;
-    
-        updateImage(calibration.imageId, {
-          bounds: [
-            [new_SW_lat, new_SW_lng],
-            [new_NE_lat, new_NE_lng]
-          ]
-        });
-        setCalibration(null);
-      }
-      return;
-    }
-
     onPlaceBin(lat, lng);
   };
 
   const unplacedBins = bins.filter(b => b.lat === null || b.lng === null);
+  const overflowingBins = placedBins.filter(b => b.status === 'overflowing');
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onOverlayImagesChange) {
-      if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          const typedarray = new Uint8Array(event.target?.result as ArrayBuffer);
-          try {
-            const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
-            const page = await pdf.getPage(1);
-            const scale = 2.0; // Render at higher resolution
-            const viewport = page.getViewport({ scale });
-            
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            if (context) {
-              canvas.height = viewport.height;
-              canvas.width = viewport.width;
-              
-              const renderContext = {
-                canvasContext: context,
-                canvas: canvas,
-                viewport: viewport
-              };
-              
-              await page.render(renderContext).promise;
-              const url = canvas.toDataURL('image/jpeg', 0.8);
-              
-              const bounds: [[number, number], [number, number]] = [
-                [48.2670, -3.5600],
-                [48.2750, -3.5500] 
-              ];
-              onOverlayImagesChange([
-                ...overlayImages,
-                {
-                  id: `img-${Date.now()}`,
-                  url,
-                  bounds,
-                  opacity: 0.7,
-                  locked: false
-                }
-              ]);
-            }
-          } catch (err) {
-            console.error('Error rendering PDF', err);
-          }
-        };
-        reader.readAsArrayBuffer(file);
-      } else {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const url = event.target?.result as string;
-          
-          // Compress image using canvas
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 1200;
-            const MAX_HEIGHT = 1200;
-            let width = img.width;
-            let height = img.height;
+  const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-              }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width *= MAX_HEIGHT / height;
-                height = MAX_HEIGHT;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              const compressedUrl = canvas.toDataURL('image/jpeg', 0.8); // 80% quality jpeg
-              
-              const bounds: [[number, number], [number, number]] = [
-                [48.2670, -3.5600],
-                [48.2750, -3.5500] 
-              ];
-              onOverlayImagesChange([
-                ...overlayImages,
-                {
-                  id: `img-${Date.now()}`,
-                  url: compressedUrl,
-                  bounds,
-                  opacity: 0.7,
-                  locked: false
-                }
-              ]);
-            }
-          };
-          img.src = url;
-        };
-        reader.readAsDataURL(file);
+  const MapCenterer = () => {
+    const map = useMap();
+    React.useEffect(() => {
+      if (selectedBinId) {
+        const bin = placedBins.find(b => b.id === selectedBinId);
+        if (bin && bin.lat !== null && bin.lng !== null) {
+          map.flyTo([bin.lat, bin.lng], 19, { animate: true, duration: 0.5 });
+        }
       }
-    }
+    }, [selectedBinId, map]);
+    return null;
   };
 
-  const updateImage = (id: string, updates: Partial<OverlayImage>) => {
-    if (onOverlayImagesChange) {
-      onOverlayImagesChange(overlayImages.map(img => img.id === id ? { ...img, ...updates } : img));
-    }
-  };
+  const UmapSync = () => {
+    const map = useMap();
+    
+    React.useEffect(() => {
+      const updateIframe = () => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          // Use postMessage or just replace location if it's same origin, but it's cross origin.
+          // Changing src causes a reload. But changing src hash might not cause a reload in some browsers.
+          // Let's just try changing the src directly.
+          iframeRef.current.src = `${umapBaseUrl}#${zoom}/${center.lat}/${center.lng}`;
+        }
+      };
 
-  const removeImage = (id: string) => {
-    if (onOverlayImagesChange) {
-      onOverlayImagesChange(overlayImages.filter(img => img.id !== id));
-    }
+      map.on('moveend', updateIframe);
+      map.on('zoomend', updateIframe);
+      
+      // Initialize
+      updateIframe();
+      
+      return () => {
+        map.off('moveend', updateIframe);
+        map.off('zoomend', updateIframe);
+      };
+    }, [map]);
+    return null;
   };
 
   const mapContent = (
-    <MapContainer center={[48.2710, -3.5550]} zoom={15} maxZoom={22} style={{ height: '100%', width: '100%', zIndex: 1, cursor: placingBinId || calibration ? 'crosshair' : 'grab' }}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        maxNativeZoom={19}
-        maxZoom={22}
+    <div className="relative w-full h-full bg-[#E5E0D5]">
+      <iframe
+        ref={iframeRef}
+        src={`${umapBaseUrl}#17/48.271993/-3.560402`}
+        className="absolute inset-0 w-full h-full z-0 pointer-events-none"
+        frameBorder="0"
+        allowFullScreen
       />
-      
-      {overlayImages.map(img => (
-        <ImageOverlay
-          key={img.id}
-          url={img.url}
-          bounds={img.bounds}
-          opacity={calibration && calibration.imageId === img.id && (calibration.step === 1 || calibration.step === 3) ? 0.2 : img.opacity}
-          zIndex={10}
-        />
-      ))}
+      <MapContainer center={[48.271993, -3.560402]} zoom={17} maxZoom={22} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: 'transparent', cursor: placingBinId ? 'crosshair' : 'grab' }}>
+        <UmapSync />
+        <MapCenterer />
 
-      {calibration?.img1 && <CircleMarker center={calibration.img1} radius={5} pathOptions={{ color: '#DC2626', fillColor: '#DC2626', fillOpacity: 0.8 }} />}
-      {calibration?.map1 && <CircleMarker center={calibration.map1} radius={5} pathOptions={{ color: '#2563EB', fillColor: '#2563EB', fillOpacity: 0.8 }} />}
-      {calibration?.img2 && <CircleMarker center={calibration.img2} radius={5} pathOptions={{ color: '#DC2626', fillColor: '#DC2626', fillOpacity: 0.8 }} />}
-
-      <MapDrawing shapes={shapes} onShapesChange={onShapesChange} />
       <MapEvents onMapClick={handleMapClick} onZoomChange={setZoomLevel} />
       
-      {shapes.map((shape) => {
-        const pathOptions = { color: shape.color, weight: 2, fillColor: shape.color, fillOpacity: 0.2 };
-        const popupContent = (
-          <Popup>
-            <div className="p-1 min-w-[150px] text-[#3C413A] font-sans">
-              <input 
-                type="text" 
-                value={shape.name}
-                onChange={(e) => onShapesChange(shapes.map(s => s.id === shape.id ? { ...s, name: e.target.value } : s))}
-                className="w-full font-bold text-sm mb-3 text-[#4B6345] border-b border-[#D9D3C7] focus:outline-none focus:border-[#6B8E63] bg-transparent"
-                placeholder="Nom de la forme"
-              />
-              <div className="flex flex-col gap-2">
-                <button 
-                  onClick={() => {
-                    let duplicatedPositions;
-                    if (shape.type === 'polygon') {
-                      duplicatedPositions = shape.positions.map(p => [p[0] - 0.0005, p[1] + 0.0005] as [number, number]);
-                    } else {
-                      const bounds = shape.positions as [[number, number], [number, number]];
-                      duplicatedPositions = [
-                        [bounds[0][0] - 0.0005, bounds[0][1] + 0.0005],
-                        [bounds[1][0] - 0.0005, bounds[1][1] + 0.0005]
-                      ] as [[number, number], [number, number]];
-                    }
-                    onShapesChange([...shapes, {
-                      ...shape,
-                      id: `shape-${Date.now()}`,
-                      name: `${shape.name} (copie)`,
-                      positions: duplicatedPositions
-                    }]);
-                  }} 
-                  className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"
-                >
-                  Dupliquer
-                </button>
-                <button 
-                  onClick={() => {
-                    onShapesChange(shapes.filter(s => s.id !== shape.id));
-                  }}
-                  className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#916738] text-white hover:bg-[#7A562D]"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </Popup>
-        );
-
-        if (shape.type === 'polygon') {
-          return (
-            <Polygon key={shape.id} positions={shape.positions} pathOptions={pathOptions}>
-              {popupContent}
-              <Tooltip permanent direction="center" className={`bg-transparent border-0 shadow-none text-[#916738] font-bold text-sm text-center ${zoomLevel < 15 ? 'hidden' : ''}`}>
-                {shape.name}
-              </Tooltip>
-            </Polygon>
-          );
-        }
-        if (shape.type === 'rectangle') {
-          return (
-            <Rectangle key={shape.id} bounds={shape.positions as L.LatLngBoundsLiteral} pathOptions={pathOptions}>
-              {popupContent}
-              <Tooltip permanent direction="center" className={`bg-transparent border-0 shadow-none text-[#916738] font-bold text-sm text-center ${zoomLevel < 15 ? 'hidden' : ''}`}>
-                {shape.name}
-              </Tooltip>
-            </Rectangle>
-          );
-        }
-        return null;
-      })}
-
       {placedBins.map((bin) => {
         const typeConfig = binTypes.find(t => t.id === bin.type);
         const { fillColor, borderColor } = getBinStyle(bin, binTypes);
@@ -434,6 +217,37 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
         );
       })}
     </MapContainer>
+    {overflowingBins.length > 0 && (
+      <div className="absolute top-4 left-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#DC2626] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FEE2E2]">
+          <AlertTriangle size={18} className="text-[#DC2626]" />
+          <h3 className="font-bold text-sm text-[#DC2626]">Poubelles archi pleines ({overflowingBins.length})</h3>
+        </div>
+        <div className="overflow-y-auto pr-2 space-y-2">
+          {overflowingBins.map(bin => {
+            const typeConfig = binTypes.find(t => t.id === bin.type);
+            return (
+              <div 
+                key={bin.id}
+                onClick={() => onSelectBin && onSelectBin(bin.id)}
+                className={`p-2 rounded border border-[#FEE2E2] bg-[#FEF2F2] cursor-pointer hover:bg-[#FCA5A5] transition-colors ${selectedBinId === bin.id ? 'ring-2 ring-[#DC2626]' : ''}`}
+              >
+                <div className="font-bold text-xs text-[#991B1B]">{bin.name}</div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-[10px] text-[#DC2626]">{bin.zone}</span>
+                  {typeConfig && (
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#DC2626] text-[#DC2626] bg-white">
+                      {typeConfig.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+    </div>
   );
 
   if (mode === 'map_edition') {
@@ -452,176 +266,11 @@ export default function BinMap({ bins, shapes, binTypes, mode, onUpdateStatus, o
 
           <div className="p-4 border-b border-[#E5E0D5]">
             <h3 className="font-bold text-sm text-[#3C413A] mb-3 flex items-center gap-2">
-              <ImageIcon size={16} /> Images de référence
+              <Crosshair size={16} /> Outils
             </h3>
-            
-            <div className="mb-4">
-              <label className="text-[10px] font-bold text-[#7A8275] uppercase flex justify-between mb-1">
-                Précision des déplacements
-              </label>
-              <input 
-                type="range" min="0.00001" max="0.005" step="0.00001" 
-                value={precision} 
-                onChange={e => setPrecision(parseFloat(e.target.value))}
-                className="w-full accent-[#6B8E63]"
-              />
-            </div>
-
-            <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-[#D9D3C7] rounded-xl hover:border-[#6B8E63] hover:bg-[#F9F8F6] transition-colors cursor-pointer mb-4">
-              <input type="file" accept="image/*,application/pdf" onChange={handleImageUpload} className="hidden" />
-              <div className="text-center">
-                <Plus size={24} className="mx-auto text-[#7A8275] mb-1" />
-                <span className="text-xs font-bold text-[#7A8275]">Ajouter une image ou PDF</span>
-              </div>
-            </label>
-
-            <div className="space-y-3">
-              {overlayImages.map((img, idx) => (
-                <div key={img.id} className="bg-[#F9F8F6] p-3 rounded-xl border border-[#E5E0D5]">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-[#4B6345] flex items-center gap-2">
-                      Image {idx + 1}
-                      <button 
-                        onClick={() => updateImage(img.id, { locked: !img.locked })}
-                        className={`p-1 rounded ${img.locked ? 'text-[#DC2626] bg-[#FEE2E2]' : 'text-[#7A8275] hover:bg-[#EBE7DF]'}`}
-                        title={img.locked ? "Déverrouiller" : "Verrouiller la position"}
-                      >
-                        {img.locked ? <Lock size={12} /> : <Unlock size={12} />}
-                      </button>
-                    </span>
-                    <button onClick={() => removeImage(img.id)} className="text-[#DC2626] hover:bg-[#FEE2E2] p-1 rounded">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-[#7A8275] uppercase flex justify-between">
-                        Opacité <span>{Math.round(img.opacity * 100)}%</span>
-                      </label>
-                      <input 
-                        type="range" min="0" max="1" step="0.1" 
-                        value={img.opacity} 
-                        onChange={e => updateImage(img.id, { opacity: parseFloat(e.target.value) })}
-                        className="w-full accent-[#6B8E63]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] + precision, sw[1]], [ne[0] + precision, ne[1]]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Haut"
-                      ><ArrowUp size={14} /></button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] - precision, sw[1]], [ne[0] - precision, ne[1]]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Bas"
-                      ><ArrowDown size={14} /></button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] - precision], [ne[0], ne[1] - precision]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Gauche"
-                      ><ArrowLeft size={14} /></button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] + precision], [ne[0], ne[1] + precision]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center hover:bg-[#EBE7DF] ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Droite"
-                      ><ArrowRight size={14} /></button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] - precision, sw[1] - precision], [ne[0] + precision, ne[1] + precision]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      ><Maximize2 size={12} /> Agrandir</button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] + precision, sw[1] + precision], [ne[0] - precision, ne[1] - precision]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-xs font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      ><Minus size={12} /> Rétrécir</button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] - precision], [ne[0], ne[1] + precision]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >↔ Largeur +</button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0], sw[1] + precision], [ne[0], ne[1] - precision]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >&gt;&lt; Largeur -</button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] - precision, sw[1]], [ne[0] + precision, ne[1]]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >↕ Hauteur +</button>
-                      <button 
-                        disabled={img.locked}
-                        onClick={() => {
-                          const [sw, ne] = img.bounds;
-                          updateImage(img.id, { bounds: [[sw[0] + precision, sw[1]], [ne[0] - precision, ne[1]]] });
-                        }}
-                        className={`p-1 bg-white border border-[#D9D3C7] rounded flex justify-center items-center gap-1 hover:bg-[#EBE7DF] text-[10px] font-bold ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >&gt;&lt; Hauteur -</button>
-                    </div>
-                    
-                    <div className="pt-2 border-t border-[#D9D3C7]">
-                      {calibration?.imageId === img.id ? (
-                        <div className="bg-[#FEF3C7] p-2 rounded-lg border border-[#F59E0B] text-xs">
-                          <p className="font-bold text-[#92400E] mb-1">
-                            {calibration.step === 0 && "1. Cliquez sur un point de repère sur l'image."}
-                            {calibration.step === 1 && "2. Cliquez sur l'emplacement réel sur la carte."}
-                            {calibration.step === 2 && "3. Cliquez sur un 2ème point sur l'image."}
-                            {calibration.step === 3 && "4. Cliquez sur le 2ème emplacement sur la carte."}
-                          </p>
-                          <button 
-                            onClick={() => setCalibration(null)}
-                            className="w-full mt-2 py-1 bg-white border border-[#F59E0B] text-[#92400E] rounded font-bold hover:bg-[#FEF3C7]"
-                          >
-                            Annuler le calibrage
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          disabled={img.locked}
-                          onClick={() => setCalibration({ imageId: img.id, step: 0 })}
-                          className={`w-full py-1.5 bg-[#EBE7DF] border border-[#D9D3C7] text-[#4B6345] rounded-lg font-bold hover:bg-[#D9D3C7] transition-colors text-xs flex items-center justify-center gap-2 ${img.locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <Crosshair size={14} /> Calibrer (2 points)
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-xs text-[#7A8275] mb-2">
+              L'arrière-plan du plan utilise la carte UMap: <a href="https://umap.vieillescharrues.bzh/fr/map/recap-container_20" target="_blank" rel="noreferrer" className="text-[#6B8E63] underline">recap-container_20</a>
+            </p>
           </div>
 
           <div className="p-4">

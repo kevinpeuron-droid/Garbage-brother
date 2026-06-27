@@ -1,6 +1,6 @@
 export type BinStatus = 'to_install' | 'installed' | 'overflowing' | 'to_remove' | 'removed' | 'missing';
 
-export type BinType = '100l_peintes' | '100l_sans_roue' | '300l' | '1100l' | '1100l_point_dechet';
+export type BinType = string;
 
 export interface BinTypeConfig {
   id: BinType;
@@ -26,6 +26,7 @@ export interface TrashBin {
   lastEmptied: string; // ISO string
   zone: string;
   count?: number;
+  urgentPlacement?: boolean;
 }
 
 export type EquipmentType = 'tracteur_perso' | 'tracteur_charrue' | 'tracteur_erwan_plateau' | 'autre';

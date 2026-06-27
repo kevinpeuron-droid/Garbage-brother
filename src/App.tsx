@@ -3,6 +3,7 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
+import VisitorListView from "./components/VisitorListView";
 import SettingsView from "./components/SettingsView";
 import HoursView from "./components/HoursView";
 import {
@@ -21,6 +22,7 @@ import {
   Share2,
   Check,
   Clock,
+  Users,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -77,13 +79,12 @@ type ViewMode =
   | "map_exploitation"
   | "map_edition"
   | "list"
+  | "visitor_list"
   | "settings"
   | "hours";
 
 export default function App() {
   const [bins, _setBins] = useState<TrashBin[]>([]);
-  const [shapes, _setShapes] = useState<MapShape[]>([]);
-  const [overlayImages, _setOverlayImages] = useState<any[]>([]);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
 
   useEffect(() => {
@@ -92,11 +93,9 @@ export default function App() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.bins) _setBins(data.bins);
-        if (data.shapes) _setShapes(data.shapes);
-        if (data.overlayImages) _setOverlayImages(data.overlayImages);
       } else {
         // Initialize if empty
-        setDoc(docRef, { bins: mockBins, shapes: [], overlayImages: [] }).catch(err => {
+        setDoc(docRef, { bins: mockBins }).catch(err => {
             handleFirestoreError(err, OperationType.WRITE, "maps/default");
         });
       }
@@ -111,22 +110,6 @@ export default function App() {
     _setBins((prev) => {
       const updated = typeof newBins === 'function' ? newBins(prev) : newBins;
       if (isDbLoaded) setDoc(doc(db, "maps", "default"), { bins: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
-      return updated;
-    });
-  };
-
-  const setShapes = (newShapes: MapShape[] | ((prev: MapShape[]) => MapShape[])) => {
-    _setShapes((prev) => {
-      const updated = typeof newShapes === 'function' ? newShapes(prev) : newShapes;
-      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { shapes: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
-      return updated;
-    });
-  };
-
-  const setOverlayImages = (newImages: any[] | ((prev: any[]) => any[])) => {
-    _setOverlayImages((prev) => {
-      const updated = typeof newImages === 'function' ? newImages(prev) : newImages;
-      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { overlayImages: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
       return updated;
     });
   };
@@ -195,8 +178,14 @@ export default function App() {
     );
   };
 
+  const updateBin = (id: string, updates: Partial<TrashBin>) => {
+    setBins((prev) =>
+      prev.map((bin) => (bin.id === id ? { ...bin, ...updates } : bin))
+    );
+  };
+
   const handleImportBins = (
-    importedBins: Omit<TrashBin, "id" | "lat" | "lng" | "lastEmptied">[],
+    importedBins: Omit<TrashBin, "id" | "lastEmptied">[],
     groupStrategy: "group" | "individual",
   ) => {
     const newBins: TrashBin[] = [];
@@ -205,10 +194,10 @@ export default function App() {
       if (groupStrategy === "group" || binData.count === 1) {
         newBins.push({
           ...binData,
-          status: "to_install",
+          status: binData.status || "to_install",
           id: `imported-${Date.now()}-${index}`,
-          lat: null,
-          lng: null,
+          lat: binData.lat !== undefined ? binData.lat : null,
+          lng: binData.lng !== undefined ? binData.lng : null,
           lastEmptied: new Date().toISOString(),
         });
       } else {
@@ -217,12 +206,12 @@ export default function App() {
         for (let i = 0; i < count; i++) {
           newBins.push({
             ...binData,
-            status: "to_install",
+            status: binData.status || "to_install",
             id: `imported-${Date.now()}-${index}-${i}`,
             name: `${binData.name} #${i + 1}`,
             count: 1,
-            lat: null,
-            lng: null,
+            lat: binData.lat !== undefined ? binData.lat : null,
+            lng: binData.lng !== undefined ? binData.lng : null,
             lastEmptied: new Date().toISOString(),
           });
         }
@@ -383,6 +372,12 @@ export default function App() {
                 <List size={16} /> Liste / Import
               </button>
               <button
+                onClick={() => setViewMode("visitor_list")}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "visitor_list" ? "bg-[#9CA3AF] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+              >
+                <Users size={16} /> Visiteurs
+              </button>
+              <button
                 onClick={() => setViewMode("hours")}
                 className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "hours" ? "bg-[#916738] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
               >
@@ -426,18 +421,15 @@ export default function App() {
           <div className="flex-1 relative z-0">
             <BinMap
               bins={bins}
-              shapes={shapes}
               binTypes={binTypes}
               mode={viewMode}
               onUpdateStatus={updateBinStatus}
-              onShapesChange={setShapes}
               selectedBinId={selectedBinId}
+              onSelectBin={setSelectedBinId}
               placingBinId={placingBinId}
               onPlaceBin={handlePlaceBin}
               onDeleteBin={handleDeleteBin}
               onStartPlacing={handleStartPlacing}
-              overlayImages={overlayImages}
-              onOverlayImagesChange={setOverlayImages}
             />
           </div>
         )}
@@ -450,6 +442,15 @@ export default function App() {
             onStartPlacing={handleStartPlacing}
             onDeleteBin={handleDeleteBin}
             onAddBin={handleAddBin}
+            onUpdateBinTypes={setBinTypes}
+          />
+        )}
+
+        {viewMode === "visitor_list" && (
+          <VisitorListView
+            bins={bins}
+            binTypes={binTypes}
+            onUpdateBin={updateBin}
           />
         )}
 
