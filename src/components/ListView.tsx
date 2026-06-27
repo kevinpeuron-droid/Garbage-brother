@@ -13,9 +13,10 @@ interface ListViewProps {
   onDeleteBin: (id: string) => void;
   onAddBin: (bin: Omit<TrashBin, 'id'>) => void;
   onUpdateBinTypes?: (types: BinTypeConfig[]) => void;
+  onUpdateBin?: (id: string, updates: Partial<TrashBin>) => void;
 }
 
-export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onAddBin, onUpdateBinTypes }: ListViewProps) {
+export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onAddBin, onUpdateBinTypes, onUpdateBin }: ListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
   const [groupStrategy, setGroupStrategy] = useState<'group' | 'individual'>('group');
@@ -454,9 +455,29 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
                           </span>
                         )}
                       </div>
-                      <div className="text-sm flex items-center gap-4 text-[#7A8275]">
+                      <div className="text-sm flex items-center gap-4 text-[#7A8275] mb-2">
                         <span className="font-medium">{bin.zone}</span>
                         {!isUnplaced && <span>Collecté le {new Date(bin.lastEmptied).toLocaleTimeString()}</span>}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={bin.urgentPlacement || false}
+                            onChange={(e) => onUpdateBin && onUpdateBin(bin.id, { urgentPlacement: e.target.checked })}
+                            className="w-4 h-4 rounded border-[#D9D3C7] text-[#DC2626] focus:ring-[#DC2626]"
+                          />
+                          <span className={`text-xs font-bold transition-colors ${bin.urgentPlacement ? 'text-[#DC2626]' : 'text-[#7A8275]'}`}>À poser en priorité</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={bin.urgentRemoval || false}
+                            onChange={(e) => onUpdateBin && onUpdateBin(bin.id, { urgentRemoval: e.target.checked })}
+                            className="w-4 h-4 rounded border-[#D9D3C7] text-[#D4A373] focus:ring-[#D4A373]"
+                          />
+                          <span className={`text-xs font-bold transition-colors ${bin.urgentRemoval ? 'text-[#D4A373]' : 'text-[#7A8275]'}`}>À déposer en priorité</span>
+                        </label>
                       </div>
                     </div>
 

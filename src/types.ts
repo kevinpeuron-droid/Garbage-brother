@@ -27,6 +27,7 @@ export interface TrashBin {
   zone: string;
   count?: number;
   urgentPlacement?: boolean;
+  urgentRemoval?: boolean;
 }
 
 export type EquipmentType = 'tracteur_perso' | 'tracteur_charrue' | 'tracteur_erwan_plateau' | 'autre';

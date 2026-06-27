@@ -79,7 +79,6 @@ type ViewMode =
   | "map_exploitation"
   | "map_edition"
   | "list"
-  | "visitor_list"
   | "settings"
   | "hours";
 
@@ -372,12 +371,6 @@ export default function App() {
                 <List size={16} /> Liste / Import
               </button>
               <button
-                onClick={() => setViewMode("visitor_list")}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "visitor_list" ? "bg-[#9CA3AF] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Users size={16} /> Visiteurs
-              </button>
-              <button
                 onClick={() => setViewMode("hours")}
                 className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "hours" ? "bg-[#916738] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
               >
@@ -424,6 +417,7 @@ export default function App() {
               binTypes={binTypes}
               mode={viewMode}
               onUpdateStatus={updateBinStatus}
+              onUpdateBin={updateBin}
               selectedBinId={selectedBinId}
               onSelectBin={setSelectedBinId}
               placingBinId={placingBinId}
@@ -443,13 +437,6 @@ export default function App() {
             onDeleteBin={handleDeleteBin}
             onAddBin={handleAddBin}
             onUpdateBinTypes={setBinTypes}
-          />
-        )}
-
-        {viewMode === "visitor_list" && (
-          <VisitorListView
-            bins={bins}
-            binTypes={binTypes}
             onUpdateBin={updateBin}
           />
         )}

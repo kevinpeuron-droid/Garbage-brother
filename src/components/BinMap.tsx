@@ -67,14 +67,15 @@ interface BinMapProps {
   mode: 'map_pose' | 'map_depose' | 'map_exploitation' | 'map_edition';
   onUpdateStatus: (id: string, status: TrashBin['status']) => void;
   selectedBinId: string | null;
-  onSelectBin?: (id: string) => void;
+  onSelectBin?: (id: string | null) => void;
   placingBinId: string | null;
   onPlaceBin: (lat: number, lng: number) => void;
   onDeleteBin: (id: string) => void;
   onStartPlacing?: (id: string) => void;
+  onUpdateBin?: (id: string, updates: Partial<TrashBin>) => void;
 }
 
-export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedBinId, onSelectBin, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing }: BinMapProps) {
+export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedBinId, onSelectBin, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing, onUpdateBin }: BinMapProps) {
   // Filter bins based on mode to keep the map clear
   const placedBins = bins.filter(b => b.lat !== null && b.lng !== null).filter(b => {
     if (mode === 'map_pose') {
@@ -92,11 +93,14 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMapClick = (lat: number, lng: number) => {
+    if (onSelectBin) onSelectBin(null);
     onPlaceBin(lat, lng);
   };
 
   const unplacedBins = bins.filter(b => b.lat === null || b.lng === null);
   const overflowingBins = placedBins.filter(b => b.status === 'overflowing');
+  const urgentPoseBins = bins.filter(b => b.urgentPlacement && b.status === 'to_install');
+  const urgentDeposeBins = placedBins.filter(b => b.urgentRemoval && b.status === 'to_remove');
 
   const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -111,6 +115,19 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
         }
       }
     }, [selectedBinId, map]);
+    
+    React.useEffect(() => {
+      const handleDragStart = () => {
+        if (selectedBinId && onSelectBin) {
+           onSelectBin(null);
+        }
+      };
+      map.on('dragstart', handleDragStart);
+      return () => {
+        map.off('dragstart', handleDragStart);
+      };
+    }, [map, selectedBinId, onSelectBin]);
+
     return null;
   };
 
@@ -152,7 +169,7 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
         frameBorder="0"
         allowFullScreen
       />
-      <MapContainer center={[48.271993, -3.560402]} zoom={17} maxZoom={22} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: 'transparent', cursor: placingBinId ? 'crosshair' : 'grab' }}>
+      <MapContainer center={[48.271993, -3.560402]} zoom={17} maxZoom={20} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: 'transparent', cursor: placingBinId ? 'crosshair' : 'grab' }}>
         <UmapSync />
         <MapCenterer />
 
@@ -173,6 +190,27 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
                 <p className="text-xs text-[#7A8275] mb-1 font-medium">Nombre: {bin.count || 1}</p>
                 <p className="text-xs text-[#7A8275] mb-1 font-medium">Zone: {bin.zone}</p>
                 {typeConfig && <p className="text-xs font-bold mb-3" style={{ color: typeConfig.color }}>Type: {typeConfig.label}</p>}
+                
+                <div className="mb-3 space-y-2 border-t border-[#E5E0D5] pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      checked={bin.urgentPlacement || false}
+                      onChange={(e) => onUpdateBin && onUpdateBin(bin.id, { urgentPlacement: e.target.checked })}
+                      className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#DC2626] focus:ring-[#DC2626]"
+                    />
+                    <span className={`text-[10px] font-bold transition-colors ${bin.urgentPlacement ? 'text-[#DC2626]' : 'text-[#7A8275]'}`}>À poser en priorité</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      checked={bin.urgentRemoval || false}
+                      onChange={(e) => onUpdateBin && onUpdateBin(bin.id, { urgentRemoval: e.target.checked })}
+                      className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#D4A373] focus:ring-[#D4A373]"
+                    />
+                    <span className={`text-[10px] font-bold transition-colors ${bin.urgentRemoval ? 'text-[#D4A373]' : 'text-[#7A8275]'}`}>À déposer en priorité</span>
+                  </label>
+                </div>
                 
                 <div className="mb-3">
                   <p className="text-[10px] font-bold uppercase text-[#7A8275] mb-2">Changer le statut</p>
@@ -237,6 +275,68 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
                   <span className="text-[10px] text-[#DC2626]">{bin.zone}</span>
                   {typeConfig && (
                     <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#DC2626] text-[#DC2626] bg-white">
+                      {typeConfig.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {mode === 'map_pose' && urgentPoseBins.length > 0 && (
+      <div className="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#DC2626] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FEE2E2]">
+          <AlertTriangle size={18} className="text-[#DC2626]" />
+          <h3 className="font-bold text-sm text-[#DC2626]">À poser en priorité ({urgentPoseBins.length})</h3>
+        </div>
+        <div className="overflow-y-auto pr-2 space-y-2">
+          {urgentPoseBins.map(bin => {
+            const typeConfig = binTypes.find(t => t.id === bin.type);
+            return (
+              <div 
+                key={bin.id}
+                onClick={() => bin.lat && bin.lng && onSelectBin && onSelectBin(bin.id)}
+                className={`p-2 rounded border border-[#FEE2E2] bg-[#FEF2F2] cursor-pointer hover:bg-[#FCA5A5] transition-colors ${selectedBinId === bin.id ? 'ring-2 ring-[#DC2626]' : ''}`}
+              >
+                <div className="font-bold text-xs text-[#991B1B]">{bin.name}</div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-[10px] text-[#DC2626]">{bin.zone}</span>
+                  {typeConfig && (
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#DC2626] text-[#DC2626] bg-white">
+                      {typeConfig.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {mode === 'map_depose' && urgentDeposeBins.length > 0 && (
+      <div className="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#D4A373] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FCECD8]">
+          <AlertTriangle size={18} className="text-[#D4A373]" />
+          <h3 className="font-bold text-sm text-[#D4A373]">À déposer en priorité ({urgentDeposeBins.length})</h3>
+        </div>
+        <div className="overflow-y-auto pr-2 space-y-2">
+          {urgentDeposeBins.map(bin => {
+            const typeConfig = binTypes.find(t => t.id === bin.type);
+            return (
+              <div 
+                key={bin.id}
+                onClick={() => bin.lat && bin.lng && onSelectBin && onSelectBin(bin.id)}
+                className={`p-2 rounded border border-[#FCECD8] bg-[#FDF8F3] cursor-pointer hover:bg-[#FCD3A8] transition-colors ${selectedBinId === bin.id ? 'ring-2 ring-[#D4A373]' : ''}`}
+              >
+                <div className="font-bold text-xs text-[#9C6D3C]">{bin.name}</div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-[10px] text-[#D4A373]">{bin.zone}</span>
+                  {typeConfig && (
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#D4A373] text-[#D4A373] bg-white">
                       {typeConfig.label}
                     </span>
                   )}
