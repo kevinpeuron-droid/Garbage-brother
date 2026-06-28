@@ -72,10 +72,12 @@ interface BinMapProps {
   onPlaceBin: (lat: number, lng: number) => void;
   onDeleteBin: (id: string) => void;
   onStartPlacing?: (id: string) => void;
+  onAddAndPlaceBin?: (typeId: string) => void;
   onUpdateBin?: (id: string, updates: Partial<TrashBin>) => void;
+  umapOffset?: {x: number, y: number};
 }
 
-export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedBinId, onSelectBin, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing, onUpdateBin }: BinMapProps) {
+export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedBinId, onSelectBin, placingBinId, onPlaceBin, onDeleteBin, onStartPlacing, onAddAndPlaceBin, onUpdateBin, umapOffset = {x: 0, y: -23} }: BinMapProps) {
   // Filter bins based on mode to keep the map clear
   const placedBins = bins.filter(b => b.lat !== null && b.lng !== null).filter(b => {
     if (mode === 'map_pose') {
@@ -102,7 +104,7 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
   const urgentPoseBins = bins.filter(b => b.urgentPlacement && b.status === 'to_install');
   const urgentDeposeBins = placedBins.filter(b => b.urgentRemoval && b.status === 'to_remove');
 
-  const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
+  const umapBaseUrl = "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=false&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=false&onLoadPanel=none&captionBar=false&fullscreenControl=false&locateControl=false&measureControl=false&editinosmControl=false";
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const UmapSync = () => {
@@ -120,17 +122,13 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
         const hw = container.clientWidth / 2;
         const hh = container.clientHeight / 2;
         
-        // UMap a un bandeau supérieur (header) d'environ 46px.
-        // Le centre de sa carte est donc décalé vers le bas de 23px par rapport au centre de l'iframe.
-        const umapOffsetY = 23; 
-        
-        const tx = pt.x - hw;
-        const ty = pt.y - (hh + umapOffsetY);
+        const tx = pt.x - hw + umapOffset.x;
+        const ty = pt.y - hh + umapOffset.y;
         
         const scale = Math.pow(2, map.getZoom() - fixedZoom);
         
         iframeRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-        iframeRef.current.style.transformOrigin = `50% calc(50% + ${umapOffsetY}px)`;
+        iframeRef.current.style.transformOrigin = `50% calc(50% + ${-umapOffset.y}px)`;
       };
 
       map.on('move zoom', onMove);
@@ -383,6 +381,25 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
             <p className="text-xs text-[#7A8275] mb-2">
               L'arrière-plan du plan utilise la carte UMap: <a href="https://umap.vieillescharrues.bzh/fr/map/recap-container_20" target="_blank" rel="noreferrer" className="text-[#6B8E63] underline">recap-container_20</a>
             </p>
+          </div>
+
+          <div className="p-4 border-b border-[#E5E0D5]">
+            <h3 className="font-bold text-sm text-[#3C413A] mb-3 flex items-center gap-2">
+              <Plus size={16} /> Ajouter une poubelle
+            </h3>
+            <p className="text-xs text-[#7A8275] mb-3">Cliquez sur un type pour le placer sur la carte.</p>
+            <div className="grid grid-cols-2 gap-2">
+              {binTypes.map(type => (
+                <button
+                  key={type.id}
+                  onClick={() => onAddAndPlaceBin?.(type.id)}
+                  className="flex flex-col items-center gap-2 p-2 bg-white border border-[#D9D3C7] rounded-lg hover:bg-[#F4F1EA] transition-colors"
+                >
+                  <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: type.color }} />
+                  <span className="text-[10px] font-bold text-[#4B6345] text-center leading-tight">{type.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="p-4">

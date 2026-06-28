@@ -117,6 +117,15 @@ export default function App() {
     return saved ? JSON.parse(saved) : defaultBinTypes;
   });
 
+  const [umapOffset, setUmapOffset] = useState<{x: number, y: number}>(() => {
+    const saved = localStorage.getItem("vcp-umap-offset");
+    return saved ? JSON.parse(saved) : {x: 0, y: -23};
+  });
+
+  useEffect(() => {
+    localStorage.setItem("vcp-umap-offset", JSON.stringify(umapOffset));
+  }, [umapOffset]);
+
   const [sessions, setSessions] = useState<WorkSession[]>(() => {
     const saved = localStorage.getItem("vcp-sessions");
     return saved ? JSON.parse(saved) : [];
@@ -235,6 +244,31 @@ export default function App() {
     setBins((prev) => prev.filter((bin) => bin.id !== id));
     if (selectedBinId === id) setSelectedBinId(null);
     if (placingBinId === id) setPlacingBinId(null);
+  };
+
+  const handleDeleteAllBins = () => {
+    setBins([]);
+    setSelectedBinId(null);
+    setPlacingBinId(null);
+  };
+
+  const handleAddAndPlaceBin = (typeId: string) => {
+    const newBinId = crypto.randomUUID();
+    const bin: TrashBin = {
+      id: newBinId,
+      name: `Nouvelle poubelle`,
+      lat: null,
+      lng: null,
+      status: 'to_install',
+      type: typeId,
+      lastEmptied: new Date().toISOString(),
+      zone: 'Non définie',
+      count: 1
+    };
+    setBins(prev => [...prev, bin]);
+    setPlacingBinId(newBinId);
+    // On force le mode edition pour que la sidebar reste visible
+    setViewMode("map_edition");
   };
 
   const handleStartPlacing = (id: string) => {
@@ -423,6 +457,8 @@ export default function App() {
               onPlaceBin={handlePlaceBin}
               onDeleteBin={handleDeleteBin}
               onStartPlacing={handleStartPlacing}
+              onAddAndPlaceBin={handleAddAndPlaceBin}
+              umapOffset={umapOffset}
             />
           </div>
         )}
@@ -434,6 +470,7 @@ export default function App() {
             onImportBins={handleImportBins}
             onStartPlacing={handleStartPlacing}
             onDeleteBin={handleDeleteBin}
+            onDeleteAllBins={handleDeleteAllBins}
             onAddBin={handleAddBin}
             onUpdateBinTypes={setBinTypes}
             onUpdateBin={updateBin}
@@ -450,7 +487,12 @@ export default function App() {
         )}
 
         {viewMode === "settings" && (
-          <SettingsView binTypes={binTypes} onUpdateBinTypes={setBinTypes} />
+          <SettingsView 
+            binTypes={binTypes} 
+            onUpdateBinTypes={setBinTypes} 
+            umapOffset={umapOffset}
+            onUpdateUmapOffset={setUmapOffset}
+          />
         )}
       </main>
     </div>

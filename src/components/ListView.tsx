@@ -11,12 +11,13 @@ interface ListViewProps {
   onImportBins: (importedBins: Omit<TrashBin, 'id' | 'lastEmptied'>[], groupStrategy: 'group' | 'individual') => void;
   onStartPlacing: (binId: string) => void;
   onDeleteBin: (id: string) => void;
+  onDeleteAllBins?: () => void;
   onAddBin: (bin: Omit<TrashBin, 'id'>) => void;
   onUpdateBinTypes?: (types: BinTypeConfig[]) => void;
   onUpdateBin?: (id: string, updates: Partial<TrashBin>) => void;
 }
 
-export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onAddBin, onUpdateBinTypes, onUpdateBin }: ListViewProps) {
+export default function ListView({ bins, binTypes, onImportBins, onStartPlacing, onDeleteBin, onDeleteAllBins, onAddBin, onUpdateBinTypes, onUpdateBin }: ListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
   const [groupStrategy, setGroupStrategy] = useState<'group' | 'individual'>('group');
@@ -706,14 +707,27 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
         </div>
 
         {activeTab === 'list' && (
-          <div className="p-4 border-t border-[#D9D3C7] bg-white">
+          <div className="p-4 border-t border-[#D9D3C7] bg-white flex flex-col sm:flex-row gap-3 justify-center items-center">
             <button 
               onClick={exportToExcel}
-              className="w-full max-w-md mx-auto flex items-center justify-center gap-2 bg-[#6B8E63] hover:bg-[#5a7a53] text-white py-3 rounded-xl text-base font-bold shadow-sm transition-colors"
+              className="w-full sm:w-auto px-6 flex items-center justify-center gap-2 bg-[#6B8E63] hover:bg-[#5a7a53] text-white py-3 rounded-xl text-base font-bold shadow-sm transition-colors"
             >
               <Download size={20} />
-              Exporter la liste (Excel)
+              Exporter (Excel)
             </button>
+            {bins.length > 0 && onDeleteAllBins && (
+              <button 
+                onClick={() => {
+                  if (window.confirm("Êtes-vous sûr de vouloir supprimer TOUTES les poubelles ? Cette action est irréversible.")) {
+                    onDeleteAllBins();
+                  }
+                }}
+                className="w-full sm:w-auto px-6 flex items-center justify-center gap-2 bg-white hover:bg-[#FEE2E2] text-[#DC2626] border border-[#DC2626] py-3 rounded-xl text-base font-bold shadow-sm transition-colors"
+              >
+                <Trash2 size={20} />
+                Tout supprimer
+              </button>
+            )}
           </div>
         )}
       </div>
