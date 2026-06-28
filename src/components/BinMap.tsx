@@ -120,13 +120,17 @@ export default function BinMap({ bins, binTypes, mode, onUpdateStatus, selectedB
         const hw = container.clientWidth / 2;
         const hh = container.clientHeight / 2;
         
+        // UMap a un bandeau supérieur (header) d'environ 46px.
+        // Le centre de sa carte est donc décalé vers le bas de 23px par rapport au centre de l'iframe.
+        const umapOffsetY = 23; 
+        
         const tx = pt.x - hw;
-        const ty = pt.y - hh;
+        const ty = pt.y - (hh + umapOffsetY);
         
         const scale = Math.pow(2, map.getZoom() - fixedZoom);
         
         iframeRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-        iframeRef.current.style.transformOrigin = 'center center';
+        iframeRef.current.style.transformOrigin = `50% calc(50% + ${umapOffsetY}px)`;
       };
 
       map.on('move zoom', onMove);

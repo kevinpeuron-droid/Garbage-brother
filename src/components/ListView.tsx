@@ -147,14 +147,15 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
         typeId = '1100l_point_dechet';
       }
 
-      // Déduplication (vérifier si un bac existe déjà à ces coordonnées précises)
+      // Déduplication (vérifier si un bac existe déjà à ces coordonnées proches)
+      const threshold = 0.00002; // Environ 2 mètres
       const isDuplicate = bins.some(b => 
         b.lat !== null && b.lng !== null &&
-        Math.abs(b.lat - lat) < 0.00001 && 
-        Math.abs(b.lng - lng) < 0.00001
+        Math.abs(b.lat - lat) < threshold && 
+        Math.abs(b.lng - lng) < threshold
       ) || imported.some(b => 
-        Math.abs(b.lat - lat) < 0.00001 && 
-        Math.abs(b.lng - lng) < 0.00001
+        Math.abs(b.lat - lat) < threshold && 
+        Math.abs(b.lng - lng) < threshold
       );
 
       if (isDuplicate) {
