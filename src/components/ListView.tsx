@@ -133,8 +133,33 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
     
     const processPoint = (lat: number, lng: number, props: any) => {
       const name = props.name || 'Poubelle Inconnue';
-      const typeLabel = props.name || 'Standard';
-      const typeId = typeLabel.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      let typeLabel = props.name || 'Standard';
+      let typeId = typeLabel.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      let count = 1;
+
+      // Spécificités d'import pour "bac 4 roues x2" ou "point déchet"
+      if (name.toLowerCase().includes('bac 4 roues x2')) {
+        typeLabel = '1100L Point Déchet';
+        typeId = '1100l_point_dechet';
+        count = 2;
+      } else if (name.toLowerCase().includes('point déchet') || name.toLowerCase().includes('point dechet')) {
+        typeLabel = '1100L Point Déchet';
+        typeId = '1100l_point_dechet';
+      }
+
+      // Déduplication (vérifier si un bac existe déjà à ces coordonnées précises)
+      const isDuplicate = bins.some(b => 
+        b.lat !== null && b.lng !== null &&
+        Math.abs(b.lat - lat) < 0.00001 && 
+        Math.abs(b.lng - lng) < 0.00001
+      ) || imported.some(b => 
+        Math.abs(b.lat - lat) < 0.00001 && 
+        Math.abs(b.lng - lng) < 0.00001
+      );
+
+      if (isDuplicate) {
+        return; // Ignorer ce point car il existe déjà
+      }
       
       const umapOptions = props._umap_options || {};
       let typeColor = umapOptions.color || props.color;
@@ -163,7 +188,7 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
         zone: props.description || 'Non définie',
         status: 'to_install',
         type: typeId,
-        count: 1,
+        count: count,
         lat,
         lng
       });
