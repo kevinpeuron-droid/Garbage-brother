@@ -450,9 +450,6 @@ export default function App() {
               {copied ? "Lien copié !" : "Partager"}
             </button>
           )}
-          <button className="bg-[#6B8E63] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:bg-[#5a7a53] transition-colors hidden md:block">
-            Nouvelle Alerte
-          </button>
         </div>
       </header>
 
