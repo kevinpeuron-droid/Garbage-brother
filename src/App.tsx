@@ -78,8 +78,7 @@ function handleFirestoreError(
 }
 
 type ViewMode =
-  | "map_pose"
-  | "map_depose"
+  | "map_deutz"
   | "map_exploitation"
   | "map_edition"
   | "list"
@@ -149,7 +148,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [viewMode, setViewMode] = useState<ViewMode>("map_pose");
+  const [viewMode, setViewMode] = useState<ViewMode>("map_deutz");
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
   const [placingBinId, setPlacingBinId] = useState<string | null>(null);
 
@@ -291,7 +290,7 @@ export default function App() {
 
   const handleStartPlacing = (id: string) => {
     setPlacingBinId(id);
-    setViewMode("map_pose");
+    setViewMode("map_deutz");
   };
 
   const handleAddBin = (newBin: Omit<TrashBin, "id">) => {
@@ -396,16 +395,10 @@ export default function App() {
 
         <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-[#E5E0D5] overflow-x-auto">
           <button
-            onClick={() => setViewMode("map_pose")}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_pose" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            onClick={() => setViewMode("map_deutz")}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_deutz" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
           >
-            <Map size={16} /> Mode Pose
-          </button>
-          <button
-            onClick={() => setViewMode("map_depose")}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_depose" ? "bg-[#D4A373] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-          >
-            <Map size={16} /> Mode Dépose
+            <Map size={16} /> Mode Deutz
           </button>
           <button
             onClick={() => setViewMode("map_exploitation")}
@@ -464,8 +457,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">
-        {(viewMode === "map_pose" ||
-          viewMode === "map_depose" ||
+        {(viewMode === "map_deutz" ||
           viewMode === "map_edition" ||
           viewMode === "map_exploitation") && (
           <div className="flex-1 relative z-0">

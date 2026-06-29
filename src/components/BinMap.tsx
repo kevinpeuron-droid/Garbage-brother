@@ -94,7 +94,7 @@ const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
 interface BinMapProps {
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
-  mode: "map_pose" | "map_depose" | "map_exploitation" | "map_edition";
+  mode: "map_deutz" | "map_exploitation" | "map_edition";
   onUpdateStatus: (id: string, status: TrashBin["status"]) => void;
   selectedBinId: string | null;
   onSelectBin?: (id: string | null) => void;
@@ -126,17 +126,20 @@ export default function BinMap({
   umapOffset = { x: 0, y: -23 },
   onUpdateUmapOffset,
 }: BinMapProps) {
+  const [deutzSubMode, setDeutzSubMode] = useState<"pose" | "depose">("pose");
+
   // Filter bins based on mode to keep the map clear
   const placedBins = bins
     .filter((b) => b.lat !== null && b.lng !== null)
     .filter((b) => {
-      if (mode === "map_pose") {
-        return ["to_install", "installed", "overflowing"].includes(b.status);
-      }
-      if (mode === "map_depose") {
-        return ["installed", "to_remove", "removed", "overflowing"].includes(
-          b.status,
-        );
+      if (mode === "map_deutz") {
+        if (deutzSubMode === "pose") {
+          return ["to_install", "installed", "overflowing"].includes(b.status);
+        } else {
+          return ["installed", "to_remove", "removed", "overflowing"].includes(
+            b.status,
+          );
+        }
       }
       if (mode === "map_exploitation") {
         return true; // toutes les poubelles apparaissent
@@ -267,6 +270,22 @@ export default function BinMap({
 
   const mapContent = (
     <div className="relative w-full h-full bg-[#E5E0D5] overflow-hidden">
+      {mode === "map_deutz" && (
+        <div className="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#E5E0D5] p-1 flex overflow-hidden">
+          <button
+            onClick={() => setDeutzSubMode("pose")}
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${deutzSubMode === "pose" ? "bg-[#6B8E63] text-white" : "bg-transparent text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+          >
+            Pose
+          </button>
+          <button
+            onClick={() => setDeutzSubMode("depose")}
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${deutzSubMode === "depose" ? "bg-[#D4A373] text-white" : "bg-transparent text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+          >
+            Dépose
+          </button>
+        </div>
+      )}
       <iframe
         ref={iframeRef}
         src={`${umapBaseUrl}#17/48.271993/-3.560402`}
@@ -386,7 +405,7 @@ export default function BinMap({
                       Changer le statut
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {mode === "map_pose" && (
+                      {mode === "map_deutz" && deutzSubMode === "pose" && (
                         <>
                           <button
                             onClick={() => onUpdateStatus(bin.id, "to_install")}
@@ -410,7 +429,7 @@ export default function BinMap({
                           </button>
                         </>
                       )}
-                      {mode === "map_depose" && (
+                      {mode === "map_deutz" && deutzSubMode === "depose" && (
                         <>
                           <button
                             onClick={() => onUpdateStatus(bin.id, "to_remove")}
@@ -516,83 +535,87 @@ export default function BinMap({
         </div>
       )}
 
-      {mode === "map_pose" && urgentPoseBins.length > 0 && (
-        <div className="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#DC2626] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FEE2E2]">
-            <AlertTriangle size={18} className="text-[#DC2626]" />
-            <h3 className="font-bold text-sm text-[#DC2626]">
-              À poser en priorité ({urgentPoseBins.length})
-            </h3>
-          </div>
-          <div className="overflow-y-auto pr-2 space-y-2">
-            {urgentPoseBins.map((bin) => {
-              const typeConfig = binTypes.find((t) => t.id === bin.type);
-              return (
-                <div
-                  key={bin.id}
-                  onClick={() =>
-                    bin.lat && bin.lng && onSelectBin && onSelectBin(bin.id)
-                  }
-                  className={`p-2 rounded border border-[#FEE2E2] bg-[#FEF2F2] cursor-pointer hover:bg-[#FCA5A5] transition-colors ${selectedBinId === bin.id ? "ring-2 ring-[#DC2626]" : ""}`}
-                >
-                  <div className="font-bold text-xs text-[#991B1B]">
-                    {bin.name}
-                  </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-[10px] text-[#DC2626]">
-                      {bin.zone}
-                    </span>
-                    {typeConfig && (
-                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#DC2626] text-[#DC2626] bg-white">
-                        {typeConfig.label}
+      {mode === "map_deutz" &&
+        deutzSubMode === "pose" &&
+        urgentPoseBins.length > 0 && (
+          <div className="absolute top-16 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#DC2626] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FEE2E2]">
+              <AlertTriangle size={18} className="text-[#DC2626]" />
+              <h3 className="font-bold text-sm text-[#DC2626]">
+                À poser en priorité ({urgentPoseBins.length})
+              </h3>
+            </div>
+            <div className="overflow-y-auto pr-2 space-y-2">
+              {urgentPoseBins.map((bin) => {
+                const typeConfig = binTypes.find((t) => t.id === bin.type);
+                return (
+                  <div
+                    key={bin.id}
+                    onClick={() =>
+                      bin.lat && bin.lng && onSelectBin && onSelectBin(bin.id)
+                    }
+                    className={`p-2 rounded border border-[#FEE2E2] bg-[#FEF2F2] cursor-pointer hover:bg-[#FCA5A5] transition-colors ${selectedBinId === bin.id ? "ring-2 ring-[#DC2626]" : ""}`}
+                  >
+                    <div className="font-bold text-xs text-[#991B1B]">
+                      {bin.name}
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[10px] text-[#DC2626]">
+                        {bin.zone}
                       </span>
-                    )}
+                      {typeConfig && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#DC2626] text-[#DC2626] bg-white">
+                          {typeConfig.label}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {mode === "map_depose" && urgentDeposeBins.length > 0 && (
-        <div className="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#D4A373] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FCECD8]">
-            <AlertTriangle size={18} className="text-[#D4A373]" />
-            <h3 className="font-bold text-sm text-[#D4A373]">
-              À déposer en priorité ({urgentDeposeBins.length})
-            </h3>
-          </div>
-          <div className="overflow-y-auto pr-2 space-y-2">
-            {urgentDeposeBins.map((bin) => {
-              const typeConfig = binTypes.find((t) => t.id === bin.type);
-              return (
-                <div
-                  key={bin.id}
-                  onClick={() =>
-                    bin.lat && bin.lng && onSelectBin && onSelectBin(bin.id)
-                  }
-                  className={`p-2 rounded border border-[#FCECD8] bg-[#FDF8F3] cursor-pointer hover:bg-[#FCD3A8] transition-colors ${selectedBinId === bin.id ? "ring-2 ring-[#D4A373]" : ""}`}
-                >
-                  <div className="font-bold text-xs text-[#9C6D3C]">
-                    {bin.name}
-                  </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-[10px] text-[#D4A373]">
-                      {bin.zone}
-                    </span>
-                    {typeConfig && (
-                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#D4A373] text-[#D4A373] bg-white">
-                        {typeConfig.label}
+      {mode === "map_deutz" &&
+        deutzSubMode === "depose" &&
+        urgentDeposeBins.length > 0 && (
+          <div className="absolute top-16 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-[#D4A373] p-3 max-w-sm max-h-64 flex flex-col pointer-events-auto">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#FCECD8]">
+              <AlertTriangle size={18} className="text-[#D4A373]" />
+              <h3 className="font-bold text-sm text-[#D4A373]">
+                À déposer en priorité ({urgentDeposeBins.length})
+              </h3>
+            </div>
+            <div className="overflow-y-auto pr-2 space-y-2">
+              {urgentDeposeBins.map((bin) => {
+                const typeConfig = binTypes.find((t) => t.id === bin.type);
+                return (
+                  <div
+                    key={bin.id}
+                    onClick={() =>
+                      bin.lat && bin.lng && onSelectBin && onSelectBin(bin.id)
+                    }
+                    className={`p-2 rounded border border-[#FCECD8] bg-[#FDF8F3] cursor-pointer hover:bg-[#FCD3A8] transition-colors ${selectedBinId === bin.id ? "ring-2 ring-[#D4A373]" : ""}`}
+                  >
+                    <div className="font-bold text-xs text-[#9C6D3C]">
+                      {bin.name}
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[10px] text-[#D4A373]">
+                        {bin.zone}
                       </span>
-                    )}
+                      {typeConfig && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-[#D4A373] text-[#D4A373] bg-white">
+                          {typeConfig.label}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 
