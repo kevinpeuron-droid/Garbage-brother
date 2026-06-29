@@ -106,6 +106,7 @@ interface BinMapProps {
   onUpdateBin?: (id: string, updates: Partial<TrashBin>) => void;
   onUpdateAllBins?: (updater: (bins: TrashBin[]) => TrashBin[]) => void;
   umapOffset?: { x: number; y: number };
+  onUpdateUmapOffset?: (offset: { x: number; y: number }) => void;
 }
 
 export default function BinMap({
@@ -123,6 +124,7 @@ export default function BinMap({
   onUpdateBin,
   onUpdateAllBins,
   umapOffset = { x: 0, y: -23 },
+  onUpdateUmapOffset,
 }: BinMapProps) {
   // Filter bins based on mode to keep the map clear
   const placedBins = bins
@@ -636,6 +638,63 @@ export default function BinMap({
                 </p>
               )}
             </div>
+
+            {onUpdateUmapOffset && (
+              <div className="mb-4 p-3 bg-[#F4F1EA] rounded-lg border border-[#D9D3C7]">
+                <h4 className="text-[10px] font-bold text-[#7A8275] uppercase mb-2 text-center">
+                  Déplacer le fond Umap
+                </h4>
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    onClick={() =>
+                      onUpdateUmapOffset({ ...umapOffset, y: umapOffset.y - 5 })
+                    }
+                    className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
+                    title="Monter"
+                  >
+                    <ArrowUp size={16} className="text-[#3C413A]" />
+                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() =>
+                        onUpdateUmapOffset({
+                          ...umapOffset,
+                          x: umapOffset.x - 5,
+                        })
+                      }
+                      className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
+                      title="Gauche"
+                    >
+                      <ArrowLeft size={16} className="text-[#3C413A]" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        onUpdateUmapOffset({
+                          ...umapOffset,
+                          y: umapOffset.y + 5,
+                        })
+                      }
+                      className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
+                      title="Descendre"
+                    >
+                      <ArrowDown size={16} className="text-[#3C413A]" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        onUpdateUmapOffset({
+                          ...umapOffset,
+                          x: umapOffset.x + 5,
+                        })
+                      }
+                      className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
+                      title="Droite"
+                    >
+                      <ArrowRight size={16} className="text-[#3C413A]" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <p className="text-xs text-[#7A8275] mb-2">
               L'arrière-plan du plan utilise la carte UMap:{" "}

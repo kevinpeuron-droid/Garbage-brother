@@ -476,6 +476,8 @@ export default function App() {
               onUpdateStatus={updateBinStatus}
               onUpdateBin={updateBin}
               onUpdateAllBins={handleUpdateAllBins}
+              umapOffset={umapOffset}
+              onUpdateUmapOffset={setUmapOffset}
               selectedBinId={selectedBinId}
               onSelectBin={setSelectedBinId}
               placingBinId={placingBinId}
