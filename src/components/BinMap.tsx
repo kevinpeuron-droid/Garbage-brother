@@ -45,16 +45,20 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom icons based on status
-const createIcon = (fillColor: string, borderColor: string, count?: number) => {
+const createIcon = (fillColor: string, borderColor: string, count: number | undefined, zoomLevel: number) => {
+  const baseZoom = 18;
+  const baseSize = 24;
+  const size = Math.max(10, baseSize * Math.pow(2, zoomLevel - baseZoom)); // Min size 10px
+
   const content =
     count && count > 1
-      ? `<span style="color: ${borderColor === "white" ? "white" : borderColor}; font-size: 10px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${count}</span>`
+      ? `<span style="color: ${borderColor === "white" ? "white" : borderColor}; font-size: ${Math.max(8, size/2.5)}px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${count}</span>`
       : "";
   return new L.DivIcon({
     className: "custom-icon",
-    html: `<div style="background-color: ${fillColor}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">${content}</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    html: `<div style="background-color: ${fillColor}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${Math.max(1, size/8)}px solid ${borderColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">${content}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
   });
 };
 
@@ -145,6 +149,7 @@ export default function BinMap({
     });
 
   const [zoomLevel, setZoomLevel] = useState(15);
+  const [isUmapInteractive, setIsUmapInteractive] = useState(false);
   const [calibState, setCalibState] = useState<
     "idle" | "step1_bin" | "step2_map"
   >("idle");
@@ -200,37 +205,41 @@ export default function BinMap({
     const map = useMap();
 
     React.useEffect(() => {
-      const fixedCenter = L.latLng(48.271993, -3.560402);
-      const fixedZoom = 17;
-
       const onMove = () => {
         if (!iframeRef.current) return;
-
-        const pt = map.latLngToContainerPoint(fixedCenter);
-        const container = map.getContainer();
-        const hw = container.clientWidth / 2;
-        const hh = container.clientHeight / 2;
-
-        const scale = Math.pow(2, map.getZoom() - fixedZoom);
-
-        const tx = pt.x - hw + umapOffset.x * scale;
-        const ty = pt.y - hh + umapOffset.y * scale;
-
-        iframeRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-        iframeRef.current.style.transformOrigin = "center center";
+        
+        const pt = map.latLngToContainerPoint(map.getCenter());
+        const adjustedPt = L.point(pt.x - umapOffset.x, pt.y - umapOffset.y);
+        const adjustedLatLng = map.containerPointToLatLng(adjustedPt);
+        
+        const zoom = map.getZoom();
+        
+        const baseUrl = umapBaseUrl.split('#')[0];
+        const newSrc = `${baseUrl}#${zoom}/${adjustedLatLng.lat}/${adjustedLatLng.lng}`;
+        
+        if (iframeRef.current.src !== newSrc) {
+          iframeRef.current.src = newSrc;
+        }
       };
 
-      map.on("move zoom resize", onMove);
+      let timeout: any;
+      const debouncedOnMove = () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(onMove, 100);
+      };
+
+      map.on("move zoom resize", debouncedOnMove);
       onMove(); // initial update
 
       const resizeObserver = new ResizeObserver(() => {
         map.invalidateSize();
-        onMove();
+        debouncedOnMove();
       });
       resizeObserver.observe(map.getContainer());
 
       return () => {
-        map.off("move zoom resize", onMove);
+        map.off("move zoom resize", debouncedOnMove);
+        clearTimeout(timeout);
         resizeObserver.disconnect();
       };
     }, [map, umapOffset]);
@@ -286,15 +295,10 @@ export default function BinMap({
       <iframe
         ref={iframeRef}
         src={`${umapBaseUrl}#17/48.271993/-3.560402`}
-        className="absolute z-0 pointer-events-none"
+        className="absolute inset-0 z-0 w-full h-full"
         style={{
-          width: "8000px",
-          height: "8000px",
-          top: "50%",
-          left: "50%",
-          marginTop: "-4000px",
-          marginLeft: "-4000px",
           border: "none",
+          pointerEvents: "auto",
         }}
         title="Umap Background"
       />
@@ -308,6 +312,7 @@ export default function BinMap({
           width: "100%",
           zIndex: 1,
           backgroundColor: "transparent",
+          pointerEvents: isUmapInteractive ? "none" : "auto",
           cursor:
             placingBinId || calibState === "step2_map" ? "crosshair" : "grab",
         }}
@@ -324,7 +329,7 @@ export default function BinMap({
             <Marker
               key={bin.id}
               position={[bin.lat as number, bin.lng as number]}
-              icon={createIcon(fillColor, borderColor, bin.count)}
+              icon={createIcon(fillColor, borderColor, bin.count, zoomLevel)}
               eventHandlers={{
                 click: (e) => {
                   if (calibState === "step1_bin") {
@@ -631,6 +636,16 @@ export default function BinMap({
             </div>
           </div>
         )}
+
+      {/* Umap Interaction Toggle */}
+      <div className="absolute bottom-4 left-4 z-[1000] pointer-events-auto">
+        <button
+          onClick={() => setIsUmapInteractive(!isUmapInteractive)}
+          className={`px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-colors border ${isUmapInteractive ? 'bg-[#3B82F6] text-white border-[#2563EB]' : 'bg-white text-[#7A8275] border-[#E5E0D5] hover:bg-[#F4F1EA]'}`}
+        >
+          {isUmapInteractive ? "Verrouiller le fond de carte" : "Interagir avec le fond de carte"}
+        </button>
+      </div>
 
     </div>
   );
