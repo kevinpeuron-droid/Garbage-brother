@@ -26,12 +26,12 @@ import {
 import "leaflet/dist/leaflet.css";
 
 enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
+  CREATE = "create",
+  UPDATE = "update",
+  DELETE = "delete",
+  LIST = "list",
+  GET = "get",
+  WRITE = "write",
 }
 
 interface FirestoreErrorInfo {
@@ -48,10 +48,14 @@ interface FirestoreErrorInfo {
       providerId?: string | null;
       email?: string | null;
     }[];
-  }
+  };
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null,
+) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -60,15 +64,16 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
     },
     operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+    path,
+  };
+  console.error("Firestore Error: ", JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -87,27 +92,40 @@ export default function App() {
 
   useEffect(() => {
     const docRef = doc(db, "maps", "default");
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.bins) _setBins(data.bins);
-      } else {
-        // Initialize if empty
-        setDoc(docRef, { bins: mockBins }).catch(err => {
+    const unsubscribe = onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.bins) _setBins(data.bins);
+        } else {
+          // Initialize if empty
+          setDoc(docRef, { bins: mockBins }).catch((err) => {
             handleFirestoreError(err, OperationType.WRITE, "maps/default");
-        });
-      }
-      setIsDbLoaded(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, "maps/default");
-    });
+          });
+        }
+        setIsDbLoaded(true);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, "maps/default");
+      },
+    );
     return () => unsubscribe();
   }, []);
 
-  const setBins = (newBins: TrashBin[] | ((prev: TrashBin[]) => TrashBin[])) => {
+  const setBins = (
+    newBins: TrashBin[] | ((prev: TrashBin[]) => TrashBin[]),
+  ) => {
     _setBins((prev) => {
-      const updated = typeof newBins === 'function' ? newBins(prev) : newBins;
-      if (isDbLoaded) setDoc(doc(db, "maps", "default"), { bins: updated }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, "maps/default"));
+      const updated = typeof newBins === "function" ? newBins(prev) : newBins;
+      if (isDbLoaded)
+        setDoc(
+          doc(db, "maps", "default"),
+          { bins: updated },
+          { merge: true },
+        ).catch((err) =>
+          handleFirestoreError(err, OperationType.WRITE, "maps/default"),
+        );
       return updated;
     });
   };
@@ -117,9 +135,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : defaultBinTypes;
   });
 
-  const [umapOffset, setUmapOffset] = useState<{x: number, y: number}>(() => {
+  const [umapOffset, setUmapOffset] = useState<{ x: number; y: number }>(() => {
     const saved = localStorage.getItem("vcp-umap-offset");
-    return saved ? JSON.parse(saved) : {x: 0, y: -23};
+    return saved ? JSON.parse(saved) : { x: 0, y: -23 };
   });
 
   useEffect(() => {
@@ -130,8 +148,6 @@ export default function App() {
     const saved = localStorage.getItem("vcp-sessions");
     return saved ? JSON.parse(saved) : [];
   });
-
-
 
   const [viewMode, setViewMode] = useState<ViewMode>("map_pose");
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
@@ -157,8 +173,6 @@ export default function App() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-
 
   useEffect(() => {
     localStorage.setItem("vcp-types", JSON.stringify(binTypes));
@@ -187,8 +201,12 @@ export default function App() {
 
   const updateBin = (id: string, updates: Partial<TrashBin>) => {
     setBins((prev) =>
-      prev.map((bin) => (bin.id === id ? { ...bin, ...updates } : bin))
+      prev.map((bin) => (bin.id === id ? { ...bin, ...updates } : bin)),
     );
+  };
+
+  const handleUpdateAllBins = (updater: (bins: TrashBin[]) => TrashBin[]) => {
+    setBins((prev) => updater(prev));
   };
 
   const handleImportBins = (
@@ -259,13 +277,13 @@ export default function App() {
       name: `Nouvelle poubelle`,
       lat: null,
       lng: null,
-      status: 'to_install',
+      status: "to_install",
       type: typeId,
       lastEmptied: new Date().toISOString(),
-      zone: 'Non définie',
-      count: 1
+      zone: "Non définie",
+      count: 1,
     };
-    setBins(prev => [...prev, bin]);
+    setBins((prev) => [...prev, bin]);
     setPlacingBinId(newBinId);
     // On force le mode edition pour que la sidebar reste visible
     setViewMode("map_edition");
@@ -276,12 +294,12 @@ export default function App() {
     setViewMode("map_pose");
   };
 
-  const handleAddBin = (newBin: Omit<TrashBin, 'id'>) => {
+  const handleAddBin = (newBin: Omit<TrashBin, "id">) => {
     const bin: TrashBin = {
       ...newBin,
       id: crypto.randomUUID(),
     };
-    setBins(prev => [...prev, bin]);
+    setBins((prev) => [...prev, bin]);
   };
 
   const handleAuth = (e: React.FormEvent) => {
@@ -307,7 +325,10 @@ export default function App() {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-center text-[#3C413A] mb-2 flex items-baseline justify-center gap-2">
-            Big Garbage <span className="text-sm italic font-normal text-[#7A8275]">is cleaning you</span>
+            Big Garbage{" "}
+            <span className="text-sm italic font-normal text-[#7A8275]">
+              is cleaning you
+            </span>
           </h1>
           <p className="text-center text-[#7A8275] mb-8 font-medium">
             Accès Acteur Externe
@@ -366,7 +387,10 @@ export default function App() {
             <Trash2 size={18} />
           </div>
           <span className="font-bold text-lg tracking-tight hidden md:flex items-baseline gap-2">
-            Big Garbage <span className="text-sm italic font-normal text-[#7A8275]">is cleaning you</span>
+            Big Garbage{" "}
+            <span className="text-sm italic font-normal text-[#7A8275]">
+              is cleaning you
+            </span>
           </span>
         </div>
 
@@ -451,6 +475,7 @@ export default function App() {
               mode={viewMode}
               onUpdateStatus={updateBinStatus}
               onUpdateBin={updateBin}
+              onUpdateAllBins={handleUpdateAllBins}
               selectedBinId={selectedBinId}
               onSelectBin={setSelectedBinId}
               placingBinId={placingBinId}
@@ -487,9 +512,9 @@ export default function App() {
         )}
 
         {viewMode === "settings" && (
-          <SettingsView 
-            binTypes={binTypes} 
-            onUpdateBinTypes={setBinTypes} 
+          <SettingsView
+            binTypes={binTypes}
+            onUpdateBinTypes={setBinTypes}
             umapOffset={umapOffset}
             onUpdateUmapOffset={setUmapOffset}
           />

@@ -22,6 +22,7 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
   const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
   const [groupStrategy, setGroupStrategy] = useState<'group' | 'individual'>('group');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [newBin, setNewBin] = useState({
     name: '',
     zone: '',
@@ -717,11 +718,7 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
             </button>
             {bins.length > 0 && onDeleteAllBins && (
               <button 
-                onClick={() => {
-                  if (window.confirm("Êtes-vous sûr de vouloir supprimer TOUTES les poubelles ? Cette action est irréversible.")) {
-                    onDeleteAllBins();
-                  }
-                }}
+                onClick={() => setShowDeleteConfirm(true)}
                 className="w-full sm:w-auto px-6 flex items-center justify-center gap-2 bg-white hover:bg-[#FEE2E2] text-[#DC2626] border border-[#DC2626] py-3 rounded-xl text-base font-bold shadow-sm transition-colors"
               >
                 <Trash2 size={20} />
@@ -731,6 +728,39 @@ export default function ListView({ bins, binTypes, onImportBins, onStartPlacing,
           </div>
         )}
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-[#E5E0D5]/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-[#D9D3C7]">
+            <div className="flex items-center gap-3 text-[#DC2626] mb-4">
+              <AlertTriangle size={24} />
+              <h3 className="text-xl font-bold">Suppression totale</h3>
+            </div>
+            <p className="text-[#3C413A] mb-6 leading-relaxed">
+              Êtes-vous sûr de vouloir supprimer <strong>toutes les poubelles</strong> du plan et de la base de données ? 
+              Cette action est <strong className="text-[#DC2626]">définitive et irréversible</strong>.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-3 bg-[#F4F1EA] text-[#3C413A] font-bold rounded-xl hover:bg-[#D9D3C7] transition-colors"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={() => {
+                  onDeleteAllBins?.();
+                  setShowDeleteConfirm(false);
+                }}
+                className="flex-1 py-3 bg-[#DC2626] text-white font-bold rounded-xl hover:bg-[#B91C1C] transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 size={18} />
+                Oui, tout supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
