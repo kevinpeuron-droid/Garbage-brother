@@ -313,7 +313,7 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#F4F1EA] flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-[#F4F1EA] flex items-center justify-center p-4">
         <form
           onSubmit={handleAuth}
           className="bg-white p-8 rounded-2xl shadow-sm border border-[#E5E0D5] max-w-md w-full"
@@ -379,7 +379,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
       <header className="h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-6 z-20 relative print:hidden">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-[#6B8E63] rounded-lg flex items-center justify-center text-white">
