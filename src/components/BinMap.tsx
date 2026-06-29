@@ -198,6 +198,16 @@ export default function BinMap({
   const umapBaseUrl =
     "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframeSize, setIframeSize] = useState({ w: 4000, h: 4000 });
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIframeSize({
+        w: window.innerWidth * 4,
+        h: window.innerHeight * 4,
+      });
+    }
+  }, []);
 
   const UmapSync = () => {
     const map = useMap();
@@ -291,10 +301,12 @@ export default function BinMap({
         src={`${umapBaseUrl}#17/48.271993/-3.560402`}
         className="absolute z-0 pointer-events-none"
         style={{
-          width: "400%",
-          height: "400%",
-          top: "-150%",
-          left: "-150%",
+          width: `${iframeSize.w}px`,
+          height: `${iframeSize.h}px`,
+          top: "50%",
+          left: "50%",
+          marginTop: `-${iframeSize.h / 2}px`,
+          marginLeft: `-${iframeSize.w / 2}px`,
           border: "none",
         }}
         title="Umap Background"
