@@ -94,7 +94,7 @@ const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
 interface BinMapProps {
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
-  mode: "map_deutz" | "map_exploitation" | "map_edition";
+  mode: "map" | "map_edition" | "map_deutz";
   onUpdateStatus: (id: string, status: TrashBin["status"]) => void;
   selectedBinId: string | null;
   onSelectBin?: (id: string | null) => void;
@@ -128,7 +128,7 @@ export default function BinMap({
 }: BinMapProps) {
   const [deutzSubMode, setDeutzSubMode] = useState<"pose" | "depose">("pose");
 
-  // Filter bins based on mode to keep the map clear
+  // Filter bins: show all placed bins
   const placedBins = bins
     .filter((b) => b.lat !== null && b.lng !== null)
     .filter((b) => {
@@ -140,9 +140,6 @@ export default function BinMap({
             b.status,
           );
         }
-      }
-      if (mode === "map_exploitation") {
-        return true; // toutes les poubelles apparaissent
       }
       return true;
     });
@@ -455,8 +452,32 @@ export default function BinMap({
                           </button>
                         </>
                       )}
-                      {mode === "map_exploitation" && (
+                      {mode !== "map_deutz" && (
                         <>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "to_install")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            À poser
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "installed")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Posée
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "to_remove")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            À retirer
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "removed")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Retirée
+                          </button>
                           <button
                             onClick={() => onUpdateStatus(bin.id, "missing")}
                             className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
@@ -464,16 +485,8 @@ export default function BinMap({
                             Manquante
                           </button>
                           <button
-                            onClick={() => onUpdateStatus(bin.id, "installed")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            OK avec la vie
-                          </button>
-                          <button
-                            onClick={() =>
-                              onUpdateStatus(bin.id, "overflowing")
-                            }
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
+                            onClick={() => onUpdateStatus(bin.id, "overflowing")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
                           >
                             🚨 Archi pleine
                           </button>
@@ -485,7 +498,7 @@ export default function BinMap({
                     Dernière collecte:{" "}
                     {new Date(bin.lastEmptied).toLocaleTimeString()}
                   </div>
-                  {mode !== "map_exploitation" && (
+                  {mode === "map_edition" && (
                     <button
                       onClick={() => onDeleteBin(bin.id)}
                       className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#F4F1EA] text-[#916738] border border-[#D9D3C7] hover:bg-[#D9D3C7]"
@@ -618,6 +631,7 @@ export default function BinMap({
             </div>
           </div>
         )}
+
     </div>
   );
 

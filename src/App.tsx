@@ -3,25 +3,18 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
-import SettingsView from "./components/SettingsView";
-import HoursView from "./components/HoursView";
 import {
   TrashBin,
   MapShape,
   BinTypeConfig,
   defaultBinTypes,
-  WorkSession,
 } from "./types";
-import { mockBins } from "./data";
 import {
   Trash2,
   Map,
   List,
-  Settings,
   Share2,
   Check,
-  Clock,
-  Users,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -77,20 +70,14 @@ function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-type ViewMode =
-  | "map_deutz"
-  | "map_exploitation"
-  | "map_edition"
-  | "list"
-  | "settings"
-  | "hours";
+type ViewMode = "map" | "map_edition" | "map_deutz" | "list";
 
 export default function App() {
   const [bins, _setBins] = useState<TrashBin[]>([]);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
 
   useEffect(() => {
-    const docRef = doc(db, "maps", "default");
+    const docRef = doc(db, "maps", "clean_v1");
     const unsubscribe = onSnapshot(
       docRef,
       (docSnap) => {
@@ -99,14 +86,14 @@ export default function App() {
           if (data.bins) _setBins(data.bins);
         } else {
           // Initialize if empty
-          setDoc(docRef, { bins: mockBins }).catch((err) => {
-            handleFirestoreError(err, OperationType.WRITE, "maps/default");
+          setDoc(docRef, { bins: [] }).catch((err) => {
+            handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1");
           });
         }
         setIsDbLoaded(true);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, "maps/default");
+        handleFirestoreError(error, OperationType.GET, "maps/clean_v1");
       },
     );
     return () => unsubscribe();
@@ -119,11 +106,11 @@ export default function App() {
       const updated = typeof newBins === "function" ? newBins(prev) : newBins;
       if (isDbLoaded)
         setDoc(
-          doc(db, "maps", "default"),
+          doc(db, "maps", "clean_v1"),
           { bins: updated },
           { merge: true },
         ).catch((err) =>
-          handleFirestoreError(err, OperationType.WRITE, "maps/default"),
+          handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
         );
       return updated;
     });
@@ -143,12 +130,7 @@ export default function App() {
     localStorage.setItem("vcp-umap-offset", JSON.stringify(umapOffset));
   }, [umapOffset]);
 
-  const [sessions, setSessions] = useState<WorkSession[]>(() => {
-    const saved = localStorage.getItem("vcp-sessions");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [viewMode, setViewMode] = useState<ViewMode>("map_deutz");
+  const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
   const [placingBinId, setPlacingBinId] = useState<string | null>(null);
 
@@ -176,10 +158,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("vcp-types", JSON.stringify(binTypes));
   }, [binTypes]);
-
-  useEffect(() => {
-    localStorage.setItem("vcp-sessions", JSON.stringify(sessions));
-  }, [sessions]);
 
   const updateBinStatus = (id: string, status: TrashBin["status"]) => {
     setBins((prev) =>
@@ -245,6 +223,20 @@ export default function App() {
     setBins((prev) => [...prev, ...newBins]);
   };
 
+  const handleAddBin = (newBin: Omit<TrashBin, "id">) => {
+    const bin: TrashBin = {
+      ...newBin,
+      id: crypto.randomUUID(),
+    };
+    setBins((prev) => [...prev, bin]);
+  };
+
+  const handleDeleteAllBins = () => {
+    setBins([]);
+    setSelectedBinId(null);
+    setPlacingBinId(null);
+  };
+
   const handlePlaceBin = (lat: number, lng: number) => {
     if (placingBinId) {
       setBins((prev) =>
@@ -261,12 +253,6 @@ export default function App() {
     setBins((prev) => prev.filter((bin) => bin.id !== id));
     if (selectedBinId === id) setSelectedBinId(null);
     if (placingBinId === id) setPlacingBinId(null);
-  };
-
-  const handleDeleteAllBins = () => {
-    setBins([]);
-    setSelectedBinId(null);
-    setPlacingBinId(null);
   };
 
   const handleAddAndPlaceBin = (typeId: string) => {
@@ -290,15 +276,7 @@ export default function App() {
 
   const handleStartPlacing = (id: string) => {
     setPlacingBinId(id);
-    setViewMode("map_deutz");
-  };
-
-  const handleAddBin = (newBin: Omit<TrashBin, "id">) => {
-    const bin: TrashBin = {
-      ...newBin,
-      id: crypto.randomUUID(),
-    };
-    setBins((prev) => [...prev, bin]);
+    setViewMode("map");
   };
 
   const handleAuth = (e: React.FormEvent) => {
@@ -411,9 +389,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">
-        {(viewMode === "map_deutz" ||
-          viewMode === "map_edition" ||
-          viewMode === "map_exploitation") && (
+        {(viewMode === "map" || viewMode === "map_edition" || viewMode === "map_deutz") && (
           <div className="flex-1 relative z-0">
             <BinMap
               bins={bins}
@@ -448,38 +424,20 @@ export default function App() {
             onUpdateBin={updateBin}
           />
         )}
-
-        {viewMode === "hours" && (
-          <HoursView
-            sessions={sessions}
-            onAddSession={handleAddSession}
-            onDeleteSession={handleDeleteSession}
-            onUpdateSession={handleUpdateSession}
-          />
-        )}
-
-        {viewMode === "settings" && (
-          <SettingsView
-            binTypes={binTypes}
-            onUpdateBinTypes={setBinTypes}
-            umapOffset={umapOffset}
-            onUpdateUmapOffset={setUmapOffset}
-          />
-        )}
       </main>
 
       <nav className="bg-white border-t border-[#D9D3C7] flex items-center justify-around md:justify-center p-2 z-20 shrink-0 gap-1 md:gap-2 overflow-x-auto print:hidden">
         <button
-          onClick={() => setViewMode("map_deutz")}
-          className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_deutz" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+          onClick={() => setViewMode("map")}
+          className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
         >
-          <Map size={18} /> <span className="whitespace-nowrap">Deutz</span>
+          <Map size={18} /> <span className="whitespace-nowrap">Carte</span>
         </button>
         <button
-          onClick={() => setViewMode("map_exploitation")}
-          className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_exploitation" ? "bg-[#DC2626] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+          onClick={() => setViewMode("map_deutz")}
+          className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_deutz" ? "bg-[#D4A373] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
         >
-          <Map size={18} /> <span className="whitespace-nowrap">Exploit.</span>
+          <Map size={18} /> <span className="whitespace-nowrap">Deutz</span>
         </button>
         {!isExternal && (
           <>
@@ -494,18 +452,6 @@ export default function App() {
               className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
             >
               <List size={18} /> <span className="whitespace-nowrap">Liste</span>
-            </button>
-            <button
-              onClick={() => setViewMode("hours")}
-              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "hours" ? "bg-[#916738] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-            >
-              <Clock size={18} /> <span className="whitespace-nowrap">Heures</span>
-            </button>
-            <button
-              onClick={() => setViewMode("settings")}
-              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "settings" ? "bg-[#7A8275] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-            >
-              <Settings size={18} /> <span className="whitespace-nowrap hidden md:inline">Param.</span>
             </button>
           </>
         )}
