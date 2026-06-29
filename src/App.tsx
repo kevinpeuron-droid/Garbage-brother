@@ -380,74 +380,31 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
-      <header className="h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-6 z-20 relative print:hidden">
+      <header className="h-14 md:h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-4 md:px-6 z-20 relative print:hidden">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-[#6B8E63] rounded-lg flex items-center justify-center text-white">
             <Trash2 size={18} />
           </div>
-          <span className="font-bold text-lg tracking-tight hidden md:flex items-baseline gap-2">
+          <span className="font-bold text-lg tracking-tight flex items-baseline gap-2">
             Big Garbage{" "}
-            <span className="text-sm italic font-normal text-[#7A8275]">
+            <span className="text-sm italic font-normal text-[#7A8275] hidden md:inline">
               is cleaning you
             </span>
           </span>
-        </div>
-
-        <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-[#E5E0D5] overflow-x-auto">
-          <button
-            onClick={() => setViewMode("map_deutz")}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_deutz" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-          >
-            <Map size={16} /> Mode Deutz
-          </button>
-          <button
-            onClick={() => setViewMode("map_exploitation")}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_exploitation" ? "bg-[#DC2626] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-          >
-            <Map size={16} /> Mode Exploitation
-          </button>
-          {!isExternal && (
-            <>
-              <button
-                onClick={() => setViewMode("map_edition")}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "map_edition" ? "bg-[#3B82F6] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Map size={16} /> Mode Édition
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <List size={16} /> Liste / Import
-              </button>
-              <button
-                onClick={() => setViewMode("hours")}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "hours" ? "bg-[#916738] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Clock size={16} /> Mes Heures
-              </button>
-              <button
-                onClick={() => setViewMode("settings")}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${viewMode === "settings" ? "bg-[#7A8275] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Settings size={16} />
-              </button>
-            </>
-          )}
         </div>
 
         <div className="flex items-center gap-4">
           {!isExternal && (
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 bg-white text-[#4B6345] border border-[#D9D3C7] px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-[#F4F1EA] transition-colors"
+              className="flex items-center gap-2 bg-white text-[#4B6345] border border-[#D9D3C7] px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-[#F4F1EA] transition-colors"
             >
               {copied ? (
                 <Check size={16} className="text-[#6B8E63]" />
               ) : (
                 <Share2 size={16} />
               )}
-              {copied ? "Lien copié !" : "Partager"}
+              <span className="hidden md:inline">{copied ? "Lien copié !" : "Partager"}</span>
             </button>
           )}
         </div>
@@ -474,7 +431,6 @@ export default function App() {
               onDeleteBin={handleDeleteBin}
               onStartPlacing={handleStartPlacing}
               onAddAndPlaceBin={handleAddAndPlaceBin}
-              umapOffset={umapOffset}
             />
           </div>
         )}
@@ -511,6 +467,49 @@ export default function App() {
           />
         )}
       </main>
+
+      <nav className="bg-white border-t border-[#D9D3C7] flex items-center justify-around md:justify-center p-2 z-20 shrink-0 gap-1 md:gap-2 overflow-x-auto print:hidden">
+        <button
+          onClick={() => setViewMode("map_deutz")}
+          className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_deutz" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+        >
+          <Map size={18} /> <span className="whitespace-nowrap">Deutz</span>
+        </button>
+        <button
+          onClick={() => setViewMode("map_exploitation")}
+          className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_exploitation" ? "bg-[#DC2626] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+        >
+          <Map size={18} /> <span className="whitespace-nowrap">Exploit.</span>
+        </button>
+        {!isExternal && (
+          <>
+            <button
+              onClick={() => setViewMode("map_edition")}
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_edition" ? "bg-[#3B82F6] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            >
+              <Map size={18} /> <span className="whitespace-nowrap">Édition</span>
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            >
+              <List size={18} /> <span className="whitespace-nowrap">Liste</span>
+            </button>
+            <button
+              onClick={() => setViewMode("hours")}
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "hours" ? "bg-[#916738] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            >
+              <Clock size={18} /> <span className="whitespace-nowrap">Heures</span>
+            </button>
+            <button
+              onClick={() => setViewMode("settings")}
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "settings" ? "bg-[#7A8275] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            >
+              <Settings size={18} /> <span className="whitespace-nowrap hidden md:inline">Param.</span>
+            </button>
+          </>
+        )}
+      </nav>
     </div>
   );
 }
