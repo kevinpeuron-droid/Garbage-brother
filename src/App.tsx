@@ -3,6 +3,7 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
+import SettingsView from "./components/SettingsView";
 import {
   TrashBin,
   MapShape,
@@ -13,6 +14,7 @@ import {
   Trash2,
   Map,
   List,
+  Settings,
   Share2,
   Check,
 } from "lucide-react";
@@ -70,7 +72,7 @@ function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-type ViewMode = "map" | "map_edition" | "map_deutz" | "list";
+type ViewMode = "map" | "map_edition" | "map_deutz" | "list" | "settings";
 
 export default function App() {
   const [bins, _setBins] = useState<TrashBin[]>([]);
@@ -424,6 +426,15 @@ export default function App() {
             onUpdateBin={updateBin}
           />
         )}
+
+        {viewMode === "settings" && (
+          <SettingsView
+            binTypes={binTypes}
+            onUpdateBinTypes={setBinTypes}
+            umapOffset={umapOffset}
+            onUpdateUmapOffset={setUmapOffset}
+          />
+        )}
       </main>
 
       <nav className="bg-white border-t border-[#D9D3C7] flex items-center justify-around md:justify-center p-2 z-20 shrink-0 gap-1 md:gap-2 overflow-x-auto print:hidden">
@@ -452,6 +463,12 @@ export default function App() {
               className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
             >
               <List size={18} /> <span className="whitespace-nowrap">Liste</span>
+            </button>
+            <button
+              onClick={() => setViewMode("settings")}
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "settings" ? "bg-[#7A8275] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            >
+              <Settings size={18} /> <span className="whitespace-nowrap hidden md:inline">Param.</span>
             </button>
           </>
         )}

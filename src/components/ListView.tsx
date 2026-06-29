@@ -31,58 +31,98 @@ export default function ListView({
 
   const handleImport = () => {
     try {
-      const lines = csvContent.split("\n");
-      // Basic CSV parsing
-      const headers = lines[0].toLowerCase().split(/[;,]/);
-      const importedBins: Omit<TrashBin, "id" | "lastEmptied">[] = [];
+      let importedBins: Omit<TrashBin, "id" | "lastEmptied">[] = [];
+      let isGeoJson = false;
 
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const values = lines[i].split(/[;,]/);
-        
-        let name = "Nouvelle poubelle";
-        let zone = "Général";
-        let type = defaultBinTypes[0].id;
-        let count = 1;
-        let lat = undefined;
-        let lng = undefined;
+      try {
+        const json = JSON.parse(csvContent);
+        if (json.type === "FeatureCollection" && json.features) {
+          isGeoJson = true;
+          json.features.forEach((feature: any) => {
+            if (feature.geometry?.type === "Point") {
+              const [lng, lat] = feature.geometry.coordinates;
+              const props = feature.properties || {};
+              
+              let type = defaultBinTypes[0].id;
+              const typeStr = (props.type || props.Type || props.TYPE || "").toString();
+              const matchedType = binTypes.find(t => t.label.toLowerCase() === typeStr.toLowerCase());
+              if (matchedType) type = matchedType.id;
+              else {
+                if (typeStr.includes("1100")) type = "1100l";
+                else if (typeStr.includes("300")) type = "300l";
+              }
 
-        headers.forEach((header, index) => {
-          const val = values[index]?.trim();
-          if (!val) return;
-
-          if (header.includes("nom") || header.includes("name")) name = val;
-          if (header.includes("zone") || header.includes("secteur")) zone = val;
-          if (header.includes("type")) {
-             const matchedType = binTypes.find(t => t.label.toLowerCase() === val.toLowerCase());
-             if (matchedType) type = matchedType.id;
-             else {
-               // Fallback matching
-               if (val.includes("1100")) type = "1100l";
-               else if (val.includes("300")) type = "300l";
-             }
-          }
-          if (header.includes("nombre") || header.includes("quant")) count = parseInt(val, 10) || 1;
-          if (header.includes("lat")) lat = parseFloat(val);
-          if (header.includes("lon") || header.includes("lng")) lng = parseFloat(val);
-        });
-
-        importedBins.push({
-          name,
-          zone,
-          type,
-          status: "to_install",
-          count,
-          lat: !isNaN(lat!) ? lat : undefined,
-          lng: !isNaN(lng!) ? lng : undefined,
-        });
+              importedBins.push({
+                name: props.name || props.nom || props.Name || props.Nom || "Nouvelle poubelle",
+                zone: props.zone || props.secteur || props.Zone || props.Secteur || "Général",
+                type,
+                status: "to_install",
+                count: parseInt(props.nombre || props.quantite || props.count || props.Nombre || props.Quantite || "1", 10) || 1,
+                lat,
+                lng,
+              });
+            }
+          });
+        }
+      } catch (e) {
+        // Fallback to CSV parsing
       }
 
-      onImportBins(importedBins, importStrategy);
-      setCsvContent("");
-      setIsImporting(false);
+      if (!isGeoJson) {
+        const lines = csvContent.split("\n");
+        const headers = lines[0].toLowerCase().split(/[;,]/);
+        
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const values = lines[i].split(/[;,]/);
+          
+          let name = "Nouvelle poubelle";
+          let zone = "Général";
+          let type = defaultBinTypes[0].id;
+          let count = 1;
+          let lat = undefined;
+          let lng = undefined;
+
+          headers.forEach((header, index) => {
+            const val = values[index]?.trim();
+            if (!val) return;
+
+            if (header.includes("nom") || header.includes("name")) name = val;
+            if (header.includes("zone") || header.includes("secteur")) zone = val;
+            if (header.includes("type")) {
+               const matchedType = binTypes.find(t => t.label.toLowerCase() === val.toLowerCase());
+               if (matchedType) type = matchedType.id;
+               else {
+                 if (val.includes("1100")) type = "1100l";
+                 else if (val.includes("300")) type = "300l";
+               }
+            }
+            if (header.includes("nombre") || header.includes("quant")) count = parseInt(val, 10) || 1;
+            if (header.includes("lat")) lat = parseFloat(val);
+            if (header.includes("lon") || header.includes("lng")) lng = parseFloat(val);
+          });
+
+          importedBins.push({
+            name,
+            zone,
+            type,
+            status: "to_install",
+            count,
+            lat: !isNaN(lat!) ? lat : undefined,
+            lng: !isNaN(lng!) ? lng : undefined,
+          });
+        }
+      }
+
+      if (importedBins.length > 0) {
+        onImportBins(importedBins, importStrategy);
+        setCsvContent("");
+        setIsImporting(false);
+      } else {
+        alert("Aucune donnée valide trouvée dans le fichier.");
+      }
     } catch (e) {
-      alert("Erreur lors de l'import. Vérifiez le format CSV.");
+      alert("Erreur lors de l'import. Vérifiez le format (CSV ou GeoJSON).");
     }
   };
 
@@ -115,10 +155,10 @@ export default function ListView({
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-[#D9D3C7] border-dashed rounded-lg cursor-pointer bg-[#F4F1EA] hover:bg-[#E5E0D5] transition-colors">
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
                     <FileUp className="w-8 h-8 mb-3 text-[#7A8275]" />
-                    <p className="mb-2 text-sm text-[#7A8275]"><span className="font-bold">Cliquez pour uploader</span> ou glissez un fichier CSV</p>
+                    <p className="mb-2 text-sm text-[#7A8275]"><span className="font-bold">Cliquez pour uploader</span> ou glissez un fichier CSV / GeoJSON</p>
                     <p className="text-xs text-[#A08E78]">Nom, Zone, Type, Nombre</p>
                   </div>
-                  <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                  <input type="file" accept=".csv,.json,.geojson" className="hidden" onChange={handleFileUpload} />
                 </label>
               </div>
             ) : (
@@ -127,7 +167,7 @@ export default function ListView({
                   value={csvContent}
                   onChange={(e) => setCsvContent(e.target.value)}
                   className="w-full h-32 p-3 text-xs font-mono border rounded-lg border-[#D9D3C7]"
-                  placeholder="Collez votre CSV ici..."
+                  placeholder="Collez votre CSV ou JSON ici..."
                  />
                  
                  <div className="flex gap-4 items-center">
