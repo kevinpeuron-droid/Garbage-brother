@@ -5,7 +5,7 @@ import { Upload, Plus, Trash2, Edit2, Check, X, FileUp } from "lucide-react";
 interface ListViewProps {
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
-  onImportBins: (bins: Omit<TrashBin, "id" | "lastEmptied">[], groupStrategy: "group" | "individual") => void;
+  onImportBins: (bins: (Omit<TrashBin, "id" | "lastEmptied"> & { id?: string })[], groupStrategy: "group" | "individual") => void;
   onStartPlacing: (id: string) => void;
   onDeleteBin: (id: string) => void;
   onDeleteAllBins: () => void;
@@ -39,7 +39,13 @@ export default function ListView({
       const getOrCreateType = (typeStr: string, colorStr?: string) => {
         if (!typeStr) return defaultBinTypes[0].id;
         let matchedType = currentBinTypes.find(t => t.label.toLowerCase() === typeStr.toLowerCase());
-        if (matchedType) return matchedType.id;
+        if (matchedType) {
+          if (colorStr && matchedType.color !== colorStr) {
+            matchedType.color = colorStr;
+            newTypesAdded = true; // Trigger an update
+          }
+          return matchedType.id;
+        }
         
         // Fallback matching if no color provided and matches default names
         if (!colorStr) {
@@ -68,24 +74,52 @@ export default function ListView({
         if (json.type === "FeatureCollection" && json.features) {
           isGeoJson = true;
           json.features.forEach((feature: any) => {
+            let lng: number | undefined;
+            let lat: number | undefined;
+
             if (feature.geometry?.type === "Point") {
-              const [lng, lat] = feature.geometry.coordinates;
+              [lng, lat] = feature.geometry.coordinates;
+            } else if (feature.geometry?.type === "Polygon") {
+              if (feature.geometry.coordinates[0]?.[0]) {
+                [lng, lat] = feature.geometry.coordinates[0][0];
+              }
+            } else if (feature.geometry?.type === "LineString") {
+              if (feature.geometry.coordinates[0]) {
+                [lng, lat] = feature.geometry.coordinates[0];
+              }
+            }
+
+            if (lng !== undefined && lat !== undefined) {
               const props = feature.properties || {};
               
-              const typeStr = (props.type || props.Type || props.TYPE || props.name || props.nom || "").toString();
-              const colorStr = props.color || props.Color || props.couleur || props.Couleur || props._umap_options?.color || feature?.properties?._umap_options?.color;
+              const rawName = (props.name || props.nom || props.Name || props.Nom || "").toString();
+              const description = (props.description || "").toString();
+              const nameWithDesc = rawName + (description ? ` - ${description}` : "");
+              
+              const typeStr = (props.type || props.Type || props.TYPE || rawName || "Nouvelle poubelle").toString();
+              
+              let umapOptions = props._umap_options || {};
+              if (typeof umapOptions === 'string') {
+                try {
+                  umapOptions = JSON.parse(umapOptions);
+                } catch(e) {}
+              }
+              const colorStr = umapOptions.fillColor || umapOptions.color || props.fillColor || props.color || props.Color || props.couleur || props.Couleur;
               
               const type = getOrCreateType(typeStr, colorStr);
+              
+              const providedId = props.id || feature.id;
 
               importedBins.push({
-                name: props.name || props.nom || props.Name || props.Nom || typeStr || "Nouvelle poubelle",
+                ...(providedId ? { id: providedId.toString() } : {}),
+                name: nameWithDesc || typeStr || "Nouvelle poubelle",
                 zone: props.zone || props.secteur || props.Zone || props.Secteur || "Général",
                 type,
                 status: "to_install",
                 count: parseInt(props.nombre || props.quantite || props.count || props.Nombre || props.Quantite || "1", 10) || 1,
                 lat,
                 lng,
-              });
+              } as any); // using as any since we might pass 'id' which isn't in Omit<TrashBin, "id" | "lastEmptied">
             }
           });
         }

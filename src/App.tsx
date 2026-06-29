@@ -189,7 +189,7 @@ export default function App() {
   };
 
   const handleImportBins = (
-    importedBins: Omit<TrashBin, "id" | "lastEmptied">[],
+    importedBins: (Omit<TrashBin, "id" | "lastEmptied"> & { id?: string })[],
     groupStrategy: "group" | "individual",
   ) => {
     const newBins: TrashBin[] = [];
@@ -199,7 +199,7 @@ export default function App() {
         newBins.push({
           ...binData,
           status: binData.status || "to_install",
-          id: `imported-${Date.now()}-${index}`,
+          id: binData.id || `imported-${Date.now()}-${index}`,
           lat: binData.lat !== undefined ? binData.lat : null,
           lng: binData.lng !== undefined ? binData.lng : null,
           lastEmptied: new Date().toISOString(),
@@ -211,7 +211,7 @@ export default function App() {
           newBins.push({
             ...binData,
             status: binData.status || "to_install",
-            id: `imported-${Date.now()}-${index}-${i}`,
+            id: binData.id ? `${binData.id}-${i}` : `imported-${Date.now()}-${index}-${i}`,
             name: `${binData.name} #${i + 1}`,
             count: 1,
             lat: binData.lat !== undefined ? binData.lat : null,
