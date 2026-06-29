@@ -596,10 +596,10 @@ export default function BinMap({
     </div>
   );
 
-  if (mode === "map_edition") {
-    return (
-      <div className="flex w-full h-full relative">
-        <div className="flex-1 relative">{mapContent}</div>
+  return (
+    <div className="flex w-full h-full relative">
+      <div className="flex-1 relative">{mapContent}</div>
+      {mode === "map_edition" && (
         <div className="w-80 bg-white border-l border-[#E5E0D5] flex flex-col h-full z-[1000] shadow-xl overflow-y-auto">
           <div className="p-4 border-b border-[#E5E0D5] bg-[#F9F8F6]">
             <h2 className="font-bold text-[#4B6345] flex items-center gap-2">
@@ -766,9 +766,7 @@ export default function BinMap({
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return mapContent;
+      )}
+    </div>
+  );
 }
