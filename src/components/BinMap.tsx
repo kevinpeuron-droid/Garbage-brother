@@ -291,10 +291,12 @@ export default function BinMap({
         src={`${umapBaseUrl}#17/48.271993/-3.560402`}
         className="absolute z-0 pointer-events-none"
         style={{
-          width: "400%",
-          height: "400%",
-          top: "-150%",
-          left: "-150%",
+          width: "8000px",
+          height: "8000px",
+          top: "50%",
+          left: "50%",
+          marginTop: "-4000px",
+          marginLeft: "-4000px",
           border: "none",
         }}
         title="Umap Background"
