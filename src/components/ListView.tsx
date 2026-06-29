@@ -33,6 +33,35 @@ export default function ListView({
     try {
       let importedBins: Omit<TrashBin, "id" | "lastEmptied">[] = [];
       let isGeoJson = false;
+      let currentBinTypes = [...binTypes];
+      let newTypesAdded = false;
+
+      const getOrCreateType = (typeStr: string, colorStr?: string) => {
+        if (!typeStr) return defaultBinTypes[0].id;
+        let matchedType = currentBinTypes.find(t => t.label.toLowerCase() === typeStr.toLowerCase());
+        if (matchedType) return matchedType.id;
+        
+        // Fallback matching if no color provided and matches default names
+        if (!colorStr) {
+          if (typeStr.includes("1100")) {
+            const fallback = currentBinTypes.find(t => t.id === "1100l");
+            if (fallback) return fallback.id;
+          } else if (typeStr.includes("300")) {
+            const fallback = currentBinTypes.find(t => t.id === "300l");
+            if (fallback) return fallback.id;
+          }
+        }
+
+        const fallbackId = typeStr.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const newType: BinTypeConfig = {
+          id: `type_${fallbackId}_${Math.random().toString(36).substr(2, 9)}`,
+          label: typeStr,
+          color: colorStr || "#916738"
+        };
+        currentBinTypes.push(newType);
+        newTypesAdded = true;
+        return newType.id;
+      };
 
       try {
         const json = JSON.parse(csvContent);
@@ -43,17 +72,13 @@ export default function ListView({
               const [lng, lat] = feature.geometry.coordinates;
               const props = feature.properties || {};
               
-              let type = defaultBinTypes[0].id;
-              const typeStr = (props.type || props.Type || props.TYPE || "").toString();
-              const matchedType = binTypes.find(t => t.label.toLowerCase() === typeStr.toLowerCase());
-              if (matchedType) type = matchedType.id;
-              else {
-                if (typeStr.includes("1100")) type = "1100l";
-                else if (typeStr.includes("300")) type = "300l";
-              }
+              const typeStr = (props.type || props.Type || props.TYPE || props.name || props.nom || "").toString();
+              const colorStr = props.color || props.Color || props.couleur || props.Couleur || props._umap_options?.color || feature?.properties?._umap_options?.color;
+              
+              const type = getOrCreateType(typeStr, colorStr);
 
               importedBins.push({
-                name: props.name || props.nom || props.Name || props.Nom || "Nouvelle poubelle",
+                name: props.name || props.nom || props.Name || props.Nom || typeStr || "Nouvelle poubelle",
                 zone: props.zone || props.secteur || props.Zone || props.Secteur || "Général",
                 type,
                 status: "to_install",
@@ -78,7 +103,8 @@ export default function ListView({
           
           let name = "Nouvelle poubelle";
           let zone = "Général";
-          let type = defaultBinTypes[0].id;
+          let typeStr = "";
+          let colorStr = "";
           let count = 1;
           let lat = undefined;
           let lng = undefined;
@@ -88,19 +114,16 @@ export default function ListView({
             if (!val) return;
 
             if (header.includes("nom") || header.includes("name")) name = val;
-            if (header.includes("zone") || header.includes("secteur")) zone = val;
-            if (header.includes("type")) {
-               const matchedType = binTypes.find(t => t.label.toLowerCase() === val.toLowerCase());
-               if (matchedType) type = matchedType.id;
-               else {
-                 if (val.includes("1100")) type = "1100l";
-                 else if (val.includes("300")) type = "300l";
-               }
-            }
-            if (header.includes("nombre") || header.includes("quant")) count = parseInt(val, 10) || 1;
-            if (header.includes("lat")) lat = parseFloat(val);
-            if (header.includes("lon") || header.includes("lng")) lng = parseFloat(val);
+            else if (header.includes("zone") || header.includes("secteur")) zone = val;
+            else if (header.includes("type")) typeStr = val;
+            else if (header.includes("color") || header.includes("couleur")) colorStr = val;
+            else if (header.includes("nombre") || header.includes("quant")) count = parseInt(val, 10) || 1;
+            else if (header.includes("lat")) lat = parseFloat(val);
+            else if (header.includes("lon") || header.includes("lng")) lng = parseFloat(val);
           });
+
+          if (!typeStr) typeStr = name;
+          const type = getOrCreateType(typeStr, colorStr);
 
           importedBins.push({
             name,
@@ -115,6 +138,9 @@ export default function ListView({
       }
 
       if (importedBins.length > 0) {
+        if (newTypesAdded) {
+          onUpdateBinTypes(currentBinTypes);
+        }
         onImportBins(importedBins, importStrategy);
         setCsvContent("");
         setIsImporting(false);
