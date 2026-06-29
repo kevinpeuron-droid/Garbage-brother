@@ -28,46 +28,16 @@ export default function ListView({
   const [csvContent, setCsvContent] = useState("");
   const [importStrategy, setImportStrategy] = useState<"group" | "individual">("individual");
   const [isImporting, setIsImporting] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState<{
+    bins: any[];
+    unmapped: { key: string; typeStr: string; colorStr: string; count: number }[];
+  } | null>(null);
+  const [typeMappings, setTypeMappings] = useState<Record<string, { typeId: string, label: string, color: string }>>({});
 
-  const handleImport = () => {
+  const handleProcessFile = () => {
     try {
-      let importedBins: Omit<TrashBin, "id" | "lastEmptied">[] = [];
+      let importedBins: any[] = [];
       let isGeoJson = false;
-      let currentBinTypes = [...binTypes];
-      let newTypesAdded = false;
-
-      const getOrCreateType = (typeStr: string, colorStr?: string) => {
-        if (!typeStr) return defaultBinTypes[0].id;
-        let matchedType = currentBinTypes.find(t => t.label.toLowerCase() === typeStr.toLowerCase());
-        if (matchedType) {
-          if (colorStr && matchedType.color !== colorStr) {
-            matchedType.color = colorStr;
-            newTypesAdded = true; // Trigger an update
-          }
-          return matchedType.id;
-        }
-        
-        // Fallback matching if no color provided and matches default names
-        if (!colorStr) {
-          if (typeStr.includes("1100")) {
-            const fallback = currentBinTypes.find(t => t.id === "1100l");
-            if (fallback) return fallback.id;
-          } else if (typeStr.includes("300")) {
-            const fallback = currentBinTypes.find(t => t.id === "300l");
-            if (fallback) return fallback.id;
-          }
-        }
-
-        const fallbackId = typeStr.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const newType: BinTypeConfig = {
-          id: `type_${fallbackId}_${Math.random().toString(36).substr(2, 9)}`,
-          label: typeStr,
-          color: colorStr || "#916738"
-        };
-        currentBinTypes.push(newType);
-        newTypesAdded = true;
-        return newType.id;
-      };
 
       try {
         const json = JSON.parse(csvContent);
@@ -96,7 +66,7 @@ export default function ListView({
               const description = (props.description || "").toString();
               const nameWithDesc = rawName + (description ? ` - ${description}` : "");
               
-              const typeStr = (props.type || props.Type || props.TYPE || rawName || "Nouvelle poubelle").toString();
+              const typeStr = (props.type || props.Type || props.TYPE || rawName || "").toString();
               
               let umapOptions = props._umap_options || {};
               if (typeof umapOptions === 'string') {
@@ -104,9 +74,7 @@ export default function ListView({
                   umapOptions = JSON.parse(umapOptions);
                 } catch(e) {}
               }
-              const colorStr = umapOptions.fillColor || umapOptions.color || props.fillColor || props.color || props.Color || props.couleur || props.Couleur;
-              
-              const type = getOrCreateType(typeStr, colorStr);
+              const colorStr = (umapOptions.fillColor || umapOptions.color || props.fillColor || props.color || props.Color || props.couleur || props.Couleur || "").toString();
               
               const providedId = props.id || feature.id;
 
@@ -114,12 +82,13 @@ export default function ListView({
                 ...(providedId ? { id: providedId.toString() } : {}),
                 name: nameWithDesc || typeStr || "Nouvelle poubelle",
                 zone: props.zone || props.secteur || props.Zone || props.Secteur || "Général",
-                type,
+                originalTypeStr: typeStr,
+                originalColorStr: colorStr,
                 status: "to_install",
                 count: parseInt(props.nombre || props.quantite || props.count || props.Nombre || props.Quantite || "1", 10) || 1,
                 lat,
                 lng,
-              } as any); // using as any since we might pass 'id' which isn't in Omit<TrashBin, "id" | "lastEmptied">
+              });
             }
           });
         }
@@ -157,12 +126,12 @@ export default function ListView({
           });
 
           if (!typeStr) typeStr = name;
-          const type = getOrCreateType(typeStr, colorStr);
 
           importedBins.push({
             name,
             zone,
-            type,
+            originalTypeStr: typeStr,
+            originalColorStr: colorStr,
             status: "to_install",
             count,
             lat: !isNaN(lat!) ? lat : undefined,
@@ -172,18 +141,105 @@ export default function ListView({
       }
 
       if (importedBins.length > 0) {
-        if (newTypesAdded) {
-          onUpdateBinTypes(currentBinTypes);
-        }
-        onImportBins(importedBins, importStrategy);
-        setCsvContent("");
-        setIsImporting(false);
+        // Analyze unmapped types/colors
+        const unmappedMap = new Map<string, { typeStr: string; colorStr: string; count: number }>();
+        importedBins.forEach(bin => {
+          const key = `${bin.originalTypeStr}|${bin.originalColorStr}`;
+          if (!unmappedMap.has(key)) {
+            unmappedMap.set(key, { typeStr: bin.originalTypeStr, colorStr: bin.originalColorStr, count: 0 });
+          }
+          unmappedMap.get(key)!.count++;
+        });
+
+        const initialMappings: Record<string, { typeId: string, label: string, color: string }> = {};
+        
+        Array.from(unmappedMap.entries()).forEach(([key, data]) => {
+          const matchedType = binTypes.find(t => 
+            t.label.toLowerCase() === data.typeStr.toLowerCase() || 
+            (data.colorStr && t.color.toLowerCase() === data.colorStr.toLowerCase())
+          );
+
+          if (matchedType) {
+            initialMappings[key] = {
+              typeId: matchedType.id,
+              label: matchedType.label,
+              color: data.colorStr || matchedType.color
+            };
+          } else {
+             // Fallback default
+             let tId = "new";
+             let tLabel = data.typeStr || "Nouveau Type";
+             let tColor = data.colorStr || "#916738";
+             
+             if (!data.typeStr && data.colorStr) {
+               tLabel = `Type Couleur ${data.colorStr}`;
+             }
+             
+             initialMappings[key] = { typeId: tId, label: tLabel, color: tColor };
+          }
+        });
+
+        setTypeMappings(initialMappings);
+        setPendingImportData({
+          bins: importedBins,
+          unmapped: Array.from(unmappedMap.entries()).map(([k, v]) => ({ key: k, ...v }))
+        });
       } else {
         alert("Aucune donnée valide trouvée dans le fichier.");
       }
     } catch (e) {
       alert("Erreur lors de l'import. Vérifiez le format (CSV ou GeoJSON).");
     }
+  };
+
+  const handleFinalizeImport = () => {
+    if (!pendingImportData) return;
+    
+    let currentBinTypes = [...binTypes];
+    let newTypesAdded = false;
+
+    const mappedBins = pendingImportData.bins.map(bin => {
+      const key = `${bin.originalTypeStr}|${bin.originalColorStr}`;
+      const mapping = typeMappings[key];
+      
+      let finalTypeId = defaultBinTypes[0].id;
+      
+      if (mapping) {
+        if (mapping.typeId === "new") {
+           const newId = `type_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+           currentBinTypes.push({
+             id: newId,
+             label: mapping.label,
+             color: mapping.color
+           });
+           newTypesAdded = true;
+           mapping.typeId = newId; // Update for subsequent identical bins
+           finalTypeId = newId;
+        } else {
+           finalTypeId = mapping.typeId;
+           // Optionally update color of existing type if changed?
+           const existing = currentBinTypes.find(t => t.id === finalTypeId);
+           if (existing && mapping.color && existing.color !== mapping.color) {
+              existing.color = mapping.color;
+              newTypesAdded = true;
+           }
+        }
+      }
+
+      const { originalTypeStr, originalColorStr, ...rest } = bin;
+      return {
+        ...rest,
+        type: finalTypeId
+      };
+    });
+
+    if (newTypesAdded) {
+      onUpdateBinTypes(currentBinTypes);
+    }
+    onImportBins(mappedBins, importStrategy);
+    setCsvContent("");
+    setIsImporting(false);
+    setPendingImportData(null);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,10 +297,10 @@ export default function ListView({
                    </select>
 
                    <button
-                     onClick={handleImport}
+                     onClick={handleProcessFile}
                      className="px-4 py-2 bg-[#6B8E63] text-white rounded-lg text-sm font-bold flex items-center gap-2"
                    >
-                     <Check size={16} /> Importer
+                     <Check size={16} /> Analyser
                    </button>
                    <button
                      onClick={() => { setCsvContent(""); setIsImporting(false); }}
@@ -253,6 +309,76 @@ export default function ListView({
                      <X size={16} /> Annuler
                    </button>
                  </div>
+                 
+                 {pendingImportData && (
+                   <div className="mt-6 border-t border-[#D9D3C7] pt-4">
+                     <h3 className="font-bold text-sm text-[#3C413A] mb-3">Associations détectées</h3>
+                     <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                       {pendingImportData.unmapped.map(item => (
+                         <div key={item.key} className="flex items-center gap-3 bg-[#F4F1EA] p-3 rounded-lg border border-[#D9D3C7]">
+                           <div className="flex-1 flex items-center gap-2">
+                             <div className="w-4 h-4 rounded-full border border-gray-300" style={{ backgroundColor: item.colorStr || "#ccc" }} />
+                             <div>
+                               <div className="text-xs font-bold text-[#3C413A]">{item.typeStr || "Sans nom"}</div>
+                               <div className="text-[10px] text-[#7A8275]">{item.count} élément(s)</div>
+                             </div>
+                           </div>
+                           <div className="flex-1 flex items-center gap-2">
+                             <span className="text-xs text-[#7A8275]">➡️</span>
+                             <div className="flex-1 space-y-1">
+                               <select
+                                 value={typeMappings[item.key]?.typeId || ""}
+                                 onChange={(e) => setTypeMappings(prev => ({
+                                   ...prev,
+                                   [item.key]: { ...prev[item.key], typeId: e.target.value }
+                                 }))}
+                                 className="w-full text-xs p-1.5 border border-[#D9D3C7] rounded"
+                               >
+                                 <option value="new">+ Créer comme nouveau type</option>
+                                 <optgroup label="Types existants">
+                                   {binTypes.map(t => (
+                                     <option key={t.id} value={t.id}>{t.label}</option>
+                                   ))}
+                                 </optgroup>
+                               </select>
+                               {typeMappings[item.key]?.typeId === "new" && (
+                                 <div className="flex gap-1">
+                                   <input 
+                                     type="text"
+                                     value={typeMappings[item.key]?.label || ""}
+                                     onChange={(e) => setTypeMappings(prev => ({
+                                       ...prev,
+                                       [item.key]: { ...prev[item.key], label: e.target.value }
+                                     }))}
+                                     placeholder="Nom"
+                                     className="flex-1 text-xs p-1.5 border border-[#D9D3C7] rounded"
+                                   />
+                                   <input 
+                                     type="color"
+                                     value={typeMappings[item.key]?.color || "#916738"}
+                                     onChange={(e) => setTypeMappings(prev => ({
+                                       ...prev,
+                                       [item.key]: { ...prev[item.key], color: e.target.value }
+                                     }))}
+                                     className="w-8 h-7 p-0 border-0 rounded cursor-pointer"
+                                   />
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                     <div className="mt-4 flex justify-end">
+                       <button
+                         onClick={handleFinalizeImport}
+                         className="px-4 py-2 bg-[#D4A373] text-white rounded-lg text-sm font-bold flex items-center gap-2"
+                       >
+                         <Check size={16} /> Finaliser l'import ({pendingImportData.bins.length} éléments)
+                       </button>
+                     </div>
+                   </div>
+                 )}
               </div>
             )}
           </div>
