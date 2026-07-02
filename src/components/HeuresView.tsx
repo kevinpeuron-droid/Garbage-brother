@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { EquipmentConfig, WorkSession } from "../types";
-import { Plus, Trash2, Edit2, Save, X, Settings2 } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, Settings2, Printer } from "lucide-react";
+import ReportModal from "./ReportModal";
 
 interface HeuresViewProps {
   equipments: EquipmentConfig[];
@@ -16,11 +17,21 @@ export default function HeuresView({
   onUpdateSessions,
 }: HeuresViewProps) {
   const [activeTab, setActiveTab] = useState<"sessions" | "equipments">("sessions");
+  const [showReportModal, setShowReportModal] = useState(false);
 
   return (
     <div className="flex-1 bg-white overflow-auto flex flex-col relative w-full h-full text-[#3C413A]">
       <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto w-full">
-        <h2 className="text-2xl font-bold mb-6">Gestion des heures</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">Gestion des heures</h2>
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="flex items-center gap-2 bg-[#F4F1EA] hover:bg-[#E5E0D5] text-[#3C413A] px-4 py-2 rounded-lg font-bold text-sm transition-colors border border-[#D9D3C7]"
+          >
+            <Printer size={18} />
+            Éditer les récapitulatifs
+          </button>
+        </div>
         
         <div className="flex border-b border-[#D9D3C7] mb-6">
           <button
@@ -52,6 +63,13 @@ export default function HeuresView({
           />
         )}
       </div>
+      {showReportModal && (
+        <ReportModal
+          sessions={sessions}
+          equipments={equipments}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 }
