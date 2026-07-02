@@ -4,11 +4,15 @@ import { db, auth } from "./firebase";
 import BinMap from "./components/BinMap";
 import ListView from "./components/ListView";
 import SettingsView from "./components/SettingsView";
+import HeuresView from "./components/HeuresView";
 import {
   TrashBin,
   MapShape,
   BinTypeConfig,
   defaultBinTypes,
+  EquipmentConfig,
+  defaultEquipmentConfigs,
+  WorkSession,
 } from "./types";
 import {
   Trash2,
@@ -17,6 +21,7 @@ import {
   Settings,
   Share2,
   Check,
+  Clock,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -72,10 +77,12 @@ function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-type ViewMode = "map" | "map_edition" | "map_deutz" | "list" | "settings";
+type ViewMode = "map" | "map_edition" | "map_deutz" | "list" | "settings" | "heures";
 
 export default function App() {
   const [bins, _setBins] = useState<TrashBin[]>([]);
+  const [equipments, _setEquipments] = useState<EquipmentConfig[]>(defaultEquipmentConfigs);
+  const [sessions, _setSessions] = useState<WorkSession[]>([]);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
 
   useEffect(() => {
@@ -86,9 +93,11 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.bins) _setBins(data.bins);
+          if (data.equipments) _setEquipments(data.equipments);
+          if (data.sessions) _setSessions(data.sessions);
         } else {
           // Initialize if empty
-          setDoc(docRef, { bins: [] }).catch((err) => {
+          setDoc(docRef, { bins: [], equipments: defaultEquipmentConfigs, sessions: [] }).catch((err) => {
             handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1");
           });
         }
@@ -110,6 +119,40 @@ export default function App() {
         setDoc(
           doc(db, "maps", "clean_v1"),
           { bins: updated },
+          { merge: true },
+        ).catch((err) =>
+          handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
+        );
+      return updated;
+    });
+  };
+
+  const setEquipments = (
+    newEquipments: EquipmentConfig[] | ((prev: EquipmentConfig[]) => EquipmentConfig[]),
+  ) => {
+    _setEquipments((prev) => {
+      const updated = typeof newEquipments === "function" ? newEquipments(prev) : newEquipments;
+      if (isDbLoaded)
+        setDoc(
+          doc(db, "maps", "clean_v1"),
+          { equipments: updated },
+          { merge: true },
+        ).catch((err) =>
+          handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
+        );
+      return updated;
+    });
+  };
+
+  const setSessions = (
+    newSessions: WorkSession[] | ((prev: WorkSession[]) => WorkSession[]),
+  ) => {
+    _setSessions((prev) => {
+      const updated = typeof newSessions === "function" ? newSessions(prev) : newSessions;
+      if (isDbLoaded)
+        setDoc(
+          doc(db, "maps", "clean_v1"),
+          { sessions: updated },
           { merge: true },
         ).catch((err) =>
           handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
@@ -199,7 +242,7 @@ export default function App() {
         newBins.push({
           ...binData,
           status: binData.status || "to_install",
-          id: binData.id || `imported-${Date.now()}-${index}`,
+          id: binData.id ? `${binData.id}-${Date.now()}-${index}` : `imported-${Date.now()}-${index}`,
           lat: binData.lat !== undefined ? binData.lat : null,
           lng: binData.lng !== undefined ? binData.lng : null,
           lastEmptied: new Date().toISOString(),
@@ -211,7 +254,7 @@ export default function App() {
           newBins.push({
             ...binData,
             status: binData.status || "to_install",
-            id: binData.id ? `${binData.id}-${i}` : `imported-${Date.now()}-${index}-${i}`,
+            id: binData.id ? `${binData.id}-${Date.now()}-${index}-${i}` : `imported-${Date.now()}-${index}-${i}`,
             name: `${binData.name} #${i + 1}`,
             count: 1,
             lat: binData.lat !== undefined ? binData.lat : null,
@@ -435,6 +478,15 @@ export default function App() {
             onUpdateUmapOffset={setUmapOffset}
           />
         )}
+
+        {viewMode === "heures" && (
+          <HeuresView
+            equipments={equipments}
+            onUpdateEquipments={setEquipments}
+            sessions={sessions}
+            onUpdateSessions={setSessions}
+          />
+        )}
       </main>
 
       <nav className="bg-white border-t border-[#D9D3C7] flex items-center justify-around md:justify-center p-2 z-20 shrink-0 gap-1 md:gap-2 overflow-x-auto print:hidden">
@@ -469,6 +521,12 @@ export default function App() {
               className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "settings" ? "bg-[#7A8275] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
             >
               <Settings size={18} /> <span className="whitespace-nowrap hidden md:inline">Param.</span>
+            </button>
+            <button
+              onClick={() => setViewMode("heures")}
+              className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "heures" ? "bg-[#D4A373] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+            >
+              <Clock size={18} /> <span className="whitespace-nowrap hidden md:inline">Heures</span>
             </button>
           </>
         )}

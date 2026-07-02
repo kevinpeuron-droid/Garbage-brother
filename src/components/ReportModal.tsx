@@ -1,17 +1,17 @@
 import React, { useState } from "react";
-import { WorkSession, EquipmentType } from "../types";
+import { WorkSession, EquipmentConfig } from "../types";
 import { Printer, X } from "lucide-react";
 
 interface ReportModalProps {
   sessions: WorkSession[];
   onClose: () => void;
-  equipmentOptions: { value: EquipmentType; label: string }[];
+  equipments: EquipmentConfig[];
 }
 
 export default function ReportModal({
   sessions,
   onClose,
-  equipmentOptions,
+  equipments,
 }: ReportModalProps) {
   const [reportType, setReportType] = useState<"mission" | "facturation">(
     "mission",
@@ -24,30 +24,51 @@ export default function ReportModal({
       a.startTime.localeCompare(b.startTime),
   );
 
-  const calculateDurationHours = (start: string, end: string) => {
+  const calculateDurationHours = (start: string, end: string, breakMinutes = 0) => {
     const [startH, startM] = start.split(":").map(Number);
     const [endH, endM] = end.split(":").map(Number);
-    let diff = endH * 60 + endM - (startH * 60 + startM);
-    if (diff < 0) diff += 24 * 60;
-    return diff / 60;
+    let diff = endH * 60 + endM - (startH * 60 + startM) - breakMinutes;
+    if (diff < 0) diff += 24 * 60; // handle overnight slightly if applicable
+    return Math.max(0, diff / 60);
   };
+
+  const getEq = (id: string) => equipments.find(e => e.id === id);
 
   // Synthèse par matériel pour facturation
   const summaryByEquipment = sortedSessions.reduce(
     (acc, session) => {
-      const eqLabel =
-        session.equipment === "autre"
-          ? session.customEquipment || "Autre"
-          : equipmentOptions.find((o) => o.value === session.equipment)
-              ?.label || session.equipment;
-      const hours = calculateDurationHours(session.startTime, session.endTime);
-      const amount = hours * session.hourlyRate;
-
-      if (!acc[eqLabel]) {
-        acc[eqLabel] = { hours: 0, amount: 0 };
+      let mainEqLabel = "Inconnu";
+      let mainRate = 0;
+      const mainEq = getEq(session.equipmentId);
+      if (mainEq) {
+        mainEqLabel = mainEq.label;
+        mainRate = mainEq.hourlyRate;
       }
-      acc[eqLabel].hours += hours;
-      acc[eqLabel].amount += amount;
+      
+      let mainHours = calculateDurationHours(session.startTime, session.endTime, session.breakMinutes);
+      
+      // Handle secondary mission
+      if (session.secondaryMission) {
+        const secHours = calculateDurationHours(session.secondaryMission.startTime, session.secondaryMission.endTime);
+        mainHours -= secHours; // Deduct secondary time from main time
+        
+        let secEqLabel = "Inconnu";
+        let secRate = 0;
+        const secEq = getEq(session.secondaryMission.equipmentId);
+        if (secEq) {
+          secEqLabel = secEq.label;
+          secRate = secEq.hourlyRate;
+        }
+        
+        if (!acc[secEqLabel]) acc[secEqLabel] = { hours: 0, amount: 0 };
+        acc[secEqLabel].hours += secHours;
+        acc[secEqLabel].amount += secHours * secRate;
+      }
+
+      if (!acc[mainEqLabel]) acc[mainEqLabel] = { hours: 0, amount: 0 };
+      acc[mainEqLabel].hours += mainHours;
+      acc[mainEqLabel].amount += mainHours * mainRate;
+      
       return acc;
     },
     {} as Record<string, { hours: number; amount: number }>,
@@ -128,30 +149,43 @@ export default function ReportModal({
                       Matériel
                     </th>
                     <th className="p-3 border border-[#E5E0D5] font-bold">
-                      Mission
+                      Mission (Détails)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedSessions.map((session) => (
-                    <tr key={session.id}>
-                      <td className="p-3 border border-[#E5E0D5] font-medium text-[#3C413A]">
-                        {new Date(session.date).toLocaleDateString("fr-FR")}
-                      </td>
-                      <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                        {session.startTime} - {session.endTime}
-                      </td>
-                      <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                        {session.equipment === "autre"
-                          ? session.customEquipment
-                          : equipmentOptions.find(
-                              (o) => o.value === session.equipment,
-                            )?.label}
-                      </td>
-                      <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                        {session.mission}
-                      </td>
-                    </tr>
+                    <React.Fragment key={session.id}>
+                      <tr>
+                        <td className="p-3 border border-[#E5E0D5] font-medium text-[#3C413A]" rowSpan={session.secondaryMission ? 2 : 1}>
+                          {new Date(session.date).toLocaleDateString("fr-FR")}
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                          {session.startTime} - {session.endTime}
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                          {getEq(session.equipmentId)?.label || "Inconnu"}
+                        </td>
+                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                          Principale {session.breakMinutes ? `(Pause ${session.breakMinutes} min)` : ""}
+                          {session.mission ? ` - ${session.mission}` : ""}
+                        </td>
+                      </tr>
+                      {session.secondaryMission && (
+                        <tr className="bg-[#F4F1EA]/50 text-sm">
+                          <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                            {session.secondaryMission.startTime} - {session.secondaryMission.endTime}
+                          </td>
+                          <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                            {getEq(session.secondaryMission.equipmentId)?.label || "Inconnu"}
+                          </td>
+                          <td className="p-3 border border-[#E5E0D5] text-[#7A8275] italic">
+                            Annexe
+                            {session.secondaryMission.mission ? ` - ${session.secondaryMission.mission}` : ""}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -169,10 +203,7 @@ export default function ReportModal({
                         Horaires
                       </th>
                       <th className="p-3 border border-[#E5E0D5] font-bold">
-                        Durée
-                      </th>
-                      <th className="p-3 border border-[#E5E0D5] font-bold">
-                        Mission
+                        Durée (Facturée)
                       </th>
                       <th className="p-3 border border-[#E5E0D5] font-bold">
                         Matériel
@@ -181,31 +212,49 @@ export default function ReportModal({
                   </thead>
                   <tbody>
                     {sortedSessions.map((session) => (
-                      <tr key={session.id}>
-                        <td className="p-3 border border-[#E5E0D5] font-medium text-[#3C413A]">
-                          {new Date(session.date).toLocaleDateString("fr-FR")}
-                        </td>
-                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                          {session.startTime} - {session.endTime}
-                        </td>
-                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A] font-medium">
-                          {calculateDurationHours(
-                            session.startTime,
-                            session.endTime,
-                          ).toFixed(1)}
-                          h
-                        </td>
-                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                          {session.mission}
-                        </td>
-                        <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                          {session.equipment === "autre"
-                            ? session.customEquipment
-                            : equipmentOptions.find(
-                                (o) => o.value === session.equipment,
-                              )?.label}
-                        </td>
-                      </tr>
+                      <React.Fragment key={session.id}>
+                        <tr>
+                          <td className="p-3 border border-[#E5E0D5] font-medium text-[#3C413A]" rowSpan={session.secondaryMission ? 2 : 1}>
+                            {new Date(session.date).toLocaleDateString("fr-FR")}
+                          </td>
+                          <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                            {session.startTime} - {session.endTime}
+                          </td>
+                          <td className="p-3 border border-[#E5E0D5] text-[#3C413A] font-medium">
+                            {(calculateDurationHours(
+                              session.startTime,
+                              session.endTime,
+                              session.breakMinutes
+                            ) - (session.secondaryMission ? calculateDurationHours(
+                              session.secondaryMission.startTime,
+                              session.secondaryMission.endTime,
+                              0
+                            ) : 0)).toFixed(1)}
+                            h
+                          </td>
+                          <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                            {getEq(session.equipmentId)?.label || "Inconnu"}
+                          </td>
+                        </tr>
+                        {session.secondaryMission && (
+                          <tr className="bg-[#F4F1EA]/50 text-sm">
+                            <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                              {session.secondaryMission.startTime} - {session.secondaryMission.endTime}
+                            </td>
+                            <td className="p-3 border border-[#E5E0D5] text-[#3C413A] font-medium">
+                              {calculateDurationHours(
+                                session.secondaryMission.startTime,
+                                session.secondaryMission.endTime,
+                                0
+                              ).toFixed(1)}
+                              h
+                            </td>
+                            <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
+                              {getEq(session.secondaryMission.equipmentId)?.label || "Inconnu"}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

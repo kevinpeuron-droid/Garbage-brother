@@ -30,7 +30,25 @@ export interface TrashBin {
   urgentRemoval?: boolean;
 }
 
-export type EquipmentType = 'tracteur_perso' | 'tracteur_charrue' | 'tracteur_erwan_plateau' | 'autre';
+export interface EquipmentConfig {
+  id: string;
+  label: string;
+  hourlyRate: number;
+}
+
+export const defaultEquipmentConfigs: EquipmentConfig[] = [
+  { id: 'deutz', label: 'Deutz', hourlyRate: 50 },
+  { id: 'john_deere', label: 'John Deere', hourlyRate: 55 },
+  { id: 'tracteur_charrue', label: 'Tracteur Charrue', hourlyRate: 60 },
+  { id: 'telesco_charrue', label: 'Télesco Charrue', hourlyRate: 70 },
+];
+
+export interface SecondaryMission {
+  equipmentId: string;
+  startTime: string;
+  endTime: string;
+  mission?: string;
+}
 
 export interface WorkSession {
   id: string;
@@ -38,18 +56,11 @@ export interface WorkSession {
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   breakMinutes?: number; // Pause duration in minutes
-  mission: string;
-  equipment: EquipmentType;
-  customEquipment?: string;
-  hourlyRate: number;
+  equipmentId: string; // references EquipmentConfig.id
+  mission?: string;
+  secondaryMission?: SecondaryMission;
 }
 
-export const defaultEquipmentRates: Record<EquipmentType, number> = {
-  tracteur_perso: 50,
-  tracteur_charrue: 60,
-  tracteur_erwan_plateau: 70,
-  autre: 0,
-};
 
 export interface MapShape {
   id: string;
