@@ -13,7 +13,7 @@ export default function ReportModal({
   onClose,
   equipments,
 }: ReportModalProps) {
-  const [reportType, setReportType] = useState<"mission" | "facturation">(
+  const [reportType, setReportType] = useState<"mission" | "details_facturation" | "synthese">(
     "mission",
   );
 
@@ -91,15 +91,21 @@ export default function ReportModal({
             <div className="flex bg-[#F4F1EA] p-1 rounded-lg">
               <button
                 onClick={() => setReportType("mission")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "mission" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
+                className={`px-3 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "mission" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
               >
-                Mission
+                Missions (sans taux)
               </button>
               <button
-                onClick={() => setReportType("facturation")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "facturation" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
+                onClick={() => setReportType("details_facturation")}
+                className={`px-3 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "details_facturation" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
               >
-                Facturation
+                Détail (avec taux)
+              </button>
+              <button
+                onClick={() => setReportType("synthese")}
+                className={`px-3 py-1.5 rounded-md text-sm font-bold transition-colors ${reportType === "synthese" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275]"}`}
+              >
+                Synthèse
               </button>
             </div>
           </div>
@@ -120,7 +126,7 @@ export default function ReportModal({
         </div>
 
         {/* Zone imprimable */}
-        <div className="flex-1 overflow-auto p-8 print:p-0">
+        <div className="flex-1 overflow-auto p-8 print:p-0 print-area bg-white">
           <div className="print:hidden mb-6">
             <p className="text-[#7A8275] text-sm">
               Aperçu avant impression. Cliquez sur Imprimer pour générer le
@@ -130,9 +136,9 @@ export default function ReportModal({
 
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold text-[#3C413A] mb-8 text-center uppercase tracking-wider">
-              {reportType === "mission"
-                ? "Récapitulatif des Missions"
-                : "Récapitulatif de Facturation"}
+              {reportType === "mission" && "Récapitulatif des Missions"}
+              {reportType === "details_facturation" && "Détail de Facturation"}
+              {reportType === "synthese" && "Synthèse de Facturation"}
             </h1>
 
             {reportType === "mission" && (
@@ -191,7 +197,7 @@ export default function ReportModal({
               </table>
             )}
 
-            {reportType === "facturation" && (
+            {reportType === "details_facturation" && (
               <div className="space-y-8">
                 <table className="w-full text-left border-collapse border border-[#E5E0D5]">
                   <thead>
@@ -258,7 +264,11 @@ export default function ReportModal({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
 
+            {reportType === "synthese" && (
+              <div className="bg-white border-y border-[#E5E0D5] py-4 print:border-none">
                 <div className="bg-[#F9F8F6] p-6 border border-[#E5E0D5] rounded-xl break-inside-avoid">
                   <h3 className="text-lg font-bold text-[#3C413A] mb-4 uppercase tracking-wider">
                     Synthèse de facturation
