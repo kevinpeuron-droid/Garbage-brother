@@ -22,6 +22,8 @@ import {
   Share2,
   Check,
   Clock,
+  Menu,
+  X,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -84,6 +86,7 @@ export default function App() {
   const [equipments, _setEquipments] = useState<EquipmentConfig[]>(defaultEquipmentConfigs);
   const [sessions, _setSessions] = useState<WorkSession[]>([]);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     const docRef = doc(db, "maps", "clean_v1");
@@ -401,11 +404,24 @@ export default function App() {
     );
   };
 
+  const binsToInstallCount = React.useMemo(() => {
+    return binTypes.map(type => {
+      const count = bins.filter(b => b.type === type.id && b.status === "to_install").length;
+      return { ...type, count };
+    });
+  }, [bins, binTypes]);
+
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
       <header className="h-14 md:h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-4 md:px-6 z-20 relative print:hidden">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#6B8E63] rounded-lg flex items-center justify-center text-white">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="md:hidden w-8 h-8 flex items-center justify-center text-[#3C413A] hover:bg-[#E5E0D5] rounded-lg transition-colors"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="w-8 h-8 bg-[#6B8E63] rounded-lg flex items-center justify-center text-white hidden md:flex">
             <Trash2 size={18} />
           </div>
           <span className="font-bold text-lg tracking-tight flex items-baseline gap-2">
@@ -434,6 +450,51 @@ export default function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Tab Handle (visible when sidebar is closed) */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="md:hidden absolute top-4 left-0 z-30 bg-white border-y border-r border-[#D9D3C7] rounded-r-xl shadow-md py-3 px-2 flex items-center justify-center text-[#4B6345]"
+            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+          >
+            <span className="font-bold text-xs uppercase tracking-widest">À Poser</span>
+          </button>
+        )}
+
+        {/* Sidebar Overlay (Mobile) */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/30 z-40 md:hidden" 
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+        
+        {/* Sidebar (Drawer on mobile, hidden on desktop unless we want it visible) */}
+        <aside className={`fixed top-0 left-0 h-full w-72 bg-[#F4F1EA] border-r border-[#D9D3C7] z-50 transform transition-transform duration-300 flex flex-col shadow-xl md:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="p-4 border-b border-[#D9D3C7] flex justify-between items-center">
+            <h2 className="font-bold text-[#3C413A]">À poser</h2>
+            <button onClick={() => setIsSidebarOpen(false)} className="text-[#7A8275] hover:bg-[#E5E0D5] p-2 rounded-lg transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto p-4 space-y-3">
+            {binsToInstallCount.map(type => (
+              <div key={type.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-[#D9D3C7]">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-4 h-4 rounded-full border border-black/20"
+                    style={{ backgroundColor: type.color }}
+                  />
+                  <span className="font-bold text-sm text-[#3C413A]">{type.label}</span>
+                </div>
+                <span className="font-mono font-bold text-[#D4A373] text-lg bg-[#F9F8F6] px-2 py-1 rounded">
+                  {type.count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </aside>
+
         {(viewMode === "map" || viewMode === "map_edition" || viewMode === "map_deutz") && (
           <div className="flex-1 relative z-0">
             <BinMap
