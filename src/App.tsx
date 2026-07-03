@@ -337,6 +337,13 @@ export default function App() {
     }
   };
 
+  const binsToInstallCount = React.useMemo(() => {
+    return (binTypes || []).map(type => {
+      const count = (bins || []).filter(b => b.type === type?.id && b?.status === "to_install").length;
+      return { ...type, count };
+    });
+  }, [bins, binTypes]);
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen min-h-[100dvh] bg-[#F4F1EA] flex items-center justify-center p-4">
@@ -403,13 +410,6 @@ export default function App() {
       prev.map((s) => (s.id === id ? { ...s, ...updates } : s)),
     );
   };
-
-  const binsToInstallCount = React.useMemo(() => {
-    return binTypes.map(type => {
-      const count = bins.filter(b => b.type === type.id && b.status === "to_install").length;
-      return { ...type, count };
-    });
-  }, [bins, binTypes]);
 
   return (
     <div className="flex flex-col h-screen h-[100dvh] overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
