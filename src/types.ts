@@ -43,6 +43,7 @@ export interface TrashBin {
   count?: number;
   urgentPlacement?: boolean;
   urgentRemoval?: boolean;
+  maintenanceRequired?: boolean;
 }
 
 export interface EquipmentConfig {
