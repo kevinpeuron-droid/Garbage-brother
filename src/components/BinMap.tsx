@@ -12,7 +12,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import * as pdfjsLib from "pdfjs-dist";
-import { TrashBin, MapShape, BinTypeConfig, OverlayImage } from "../types";
+import { TrashBin, MapShape, BinTypeConfig, OverlayImage, BinCategoryConfig } from "../types";
 import MapDrawing from "./MapDrawing";
 import MapEvents from "./MapEvents";
 import {
@@ -62,9 +62,10 @@ const createIcon = (fillColor: string, borderColor: string, count: number | unde
   });
 };
 
-const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
+const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[], binCategories: BinCategoryConfig[]) => {
   const typeConfig = binTypes.find((t) => t.id === bin.type);
-  const fillColor = typeConfig ? typeConfig.color : "#A08E78";
+  const categoryConfig = typeConfig ? binCategories.find(c => c.id === typeConfig.categoryId) : undefined;
+  const fillColor = categoryConfig ? categoryConfig.color : (typeConfig?.color || "#A08E78");
 
   let borderColor = "white";
 
@@ -98,6 +99,7 @@ const getBinStyle = (bin: TrashBin, binTypes: BinTypeConfig[]) => {
 interface BinMapProps {
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
+  binCategories: BinCategoryConfig[];
   mode: "map" | "map_edition" | "map_deutz";
   onUpdateStatus: (id: string, status: TrashBin["status"]) => void;
   selectedBinId: string | null;
@@ -116,6 +118,7 @@ interface BinMapProps {
 export default function BinMap({
   bins,
   binTypes,
+  binCategories,
   mode,
   onUpdateStatus,
   selectedBinId,
@@ -324,7 +327,7 @@ export default function BinMap({
 
         {placedBins.map((bin) => {
           const typeConfig = binTypes.find((t) => t.id === bin.type);
-          const { fillColor, borderColor } = getBinStyle(bin, binTypes);
+          const { fillColor, borderColor } = getBinStyle(bin, binTypes, binCategories);
           return (
             <Marker
               key={bin.id}
@@ -779,7 +782,7 @@ export default function BinMap({
                 >
                   <div
                     className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
-                    style={{ backgroundColor: type.color }}
+                    style={{ backgroundColor: binCategories.find(c => c.id === type.categoryId)?.color || type.color || "#ccc" }}
                   />
                   <span className="text-[10px] font-bold text-[#4B6345] text-center leading-tight">
                     {type.label}

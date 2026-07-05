@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { TrashBin, BinTypeConfig, defaultBinTypes } from "../types";
+import { TrashBin, BinTypeConfig, defaultBinTypes, BinCategoryConfig } from "../types";
 import { Upload, Plus, Trash2, Edit2, Check, X, FileUp } from "lucide-react";
 
 interface ListViewProps {
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
+  binCategories: BinCategoryConfig[];
   onImportBins: (bins: (Omit<TrashBin, "id" | "lastEmptied"> & { id?: string })[], groupStrategy: "group" | "individual") => void;
   onStartPlacing: (id: string) => void;
   onDeleteBin: (id: string) => void;
@@ -17,6 +18,7 @@ interface ListViewProps {
 export default function ListView({
   bins,
   binTypes,
+  binCategories,
   onImportBins,
   onStartPlacing,
   onDeleteBin,
@@ -337,7 +339,7 @@ export default function ListView({
                                  <option value="new">+ Créer comme nouveau type</option>
                                  <optgroup label="Types existants">
                                    {binTypes.map(t => (
-                                     <option key={t.id} value={t.id}>{t.label}</option>
+                                     <option key={t.id} value={t.id}>{t.label} ({binCategories.find(c => c.id === t.categoryId)?.label})</option>
                                    ))}
                                  </optgroup>
                                </select>
@@ -403,6 +405,7 @@ export default function ListView({
                  <tr>
                    <th className="px-4 py-2 font-bold rounded-tl-lg">Nom</th>
                    <th className="px-4 py-2 font-bold">Zone</th>
+                   <th className="px-4 py-2 font-bold">Catégorie</th>
                    <th className="px-4 py-2 font-bold">Type</th>
                    <th className="px-4 py-2 font-bold">Statut</th>
                    <th className="px-4 py-2 font-bold text-center">Qté</th>
@@ -414,6 +417,17 @@ export default function ListView({
                    <tr key={bin.id} className="hover:bg-[#F9F8F6]">
                      <td className="px-4 py-3 font-medium">{bin.name}</td>
                      <td className="px-4 py-3 text-[#7A8275]">{bin.zone}</td>
+                     <td className="px-4 py-3">
+                       <div className="flex items-center gap-2">
+                         <div
+                           className="w-3 h-3 rounded-full border border-black/20"
+                           style={{ backgroundColor: binCategories.find(c => c.id === binTypes.find(t => t.id === bin.type)?.categoryId)?.color || binTypes.find(t => t.id === bin.type)?.color || "#ccc" }}
+                         />
+                         <span className="text-xs font-medium">
+                           {binCategories.find(c => c.id === binTypes.find(t => t.id === bin.type)?.categoryId)?.label || "-"}
+                         </span>
+                       </div>
+                     </td>
                      <td className="px-4 py-3">
                        <span className="px-2 py-1 bg-[#EBE7DF] rounded text-xs">
                          {binTypes.find(t => t.id === bin.type)?.label || bin.type}
@@ -445,7 +459,7 @@ export default function ListView({
                  ))}
                  {bins.length === 0 && (
                    <tr>
-                     <td colSpan={6} className="px-4 py-8 text-center text-[#A08E78]">
+                     <td colSpan={7} className="px-4 py-8 text-center text-[#A08E78]">
                        Aucune poubelle dans la liste. Utilisez l'import CSV ou ajoutez-en via la carte.
                      </td>
                    </tr>
