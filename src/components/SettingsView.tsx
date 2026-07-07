@@ -11,6 +11,7 @@ interface SettingsViewProps {
   onUpdateUmapOffsetPC: (offset: { x: number; y: number }) => void;
   umapOffsetMobile: { x: number; y: number };
   onUpdateUmapOffsetMobile: (offset: { x: number; y: number }) => void;
+  onRefreshUmap: () => void;
 }
 
 export default function SettingsView({
@@ -22,6 +23,7 @@ export default function SettingsView({
   onUpdateUmapOffsetPC,
   umapOffsetMobile,
   onUpdateUmapOffsetMobile,
+  onRefreshUmap,
 }: SettingsViewProps) {
   const [activeTab, setActiveTab] = useState<"pc" | "mobile">("pc");
   const umapOffset = activeTab === "pc" ? umapOffsetPC : umapOffsetMobile;
@@ -86,18 +88,21 @@ export default function SettingsView({
             Ajustez le décalage du fond de carte pour l'aligner avec les points GPS de vos poubelles.
           </p>
           
+          <p className="text-xs text-[#7A8275] mb-2">
+            Le calibrage Ordi est la base. Le calibrage Smartphone est un décalage relatif ajouté à celui de l'ordinateur.
+          </p>
           <div className="flex gap-2 mb-4 bg-[#F4F1EA] p-1 rounded-lg border border-[#D9D3C7]">
             <button
               onClick={() => setActiveTab("pc")}
               className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "pc" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275] hover:text-[#3C413A]"}`}
             >
-              Ordi
+              Ordi (Base)
             </button>
             <button
               onClick={() => setActiveTab("mobile")}
               className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "mobile" ? "bg-white shadow-sm text-[#4B6345]" : "text-[#7A8275] hover:text-[#3C413A]"}`}
             >
-              Smartphone
+              Smartphone (Relatif)
             </button>
           </div>
 
@@ -133,6 +138,13 @@ export default function SettingsView({
               <ArrowDown size={24} className="text-[#3C413A]" />
             </button>
           </div>
+          
+          <button
+            onClick={onRefreshUmap}
+            className="mt-4 w-full p-3 bg-[#3B82F6] text-white font-bold rounded-lg hover:bg-[#2563EB] transition-colors shadow-sm"
+          >
+            Rafraîchir le fond de carte (Umap)
+          </button>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-[#D9D3C7]">

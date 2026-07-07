@@ -97,6 +97,7 @@ export default function App() {
   const [umapOffsetMobile, _setUmapOffsetMobile] = useState<{ x: number; y: number }>({ x: 0, y: -23 });
   const [isDbLoaded, setIsDbLoaded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [umapRefreshKey, setUmapRefreshKey] = useState(0);
 
   useEffect(() => {
     const docRef = doc(db, "maps", "clean_v1");
@@ -585,8 +586,8 @@ export default function App() {
               onUpdateStatus={updateBinStatus}
               onUpdateBin={updateBin}
               onUpdateAllBins={handleUpdateAllBins}
-              umapOffset={deviceType === "mobile" ? umapOffsetMobile : umapOffsetPC}
-              onUpdateUmapOffset={deviceType === "mobile" ? setUmapOffsetMobile : setUmapOffsetPC}
+              umapOffset={deviceType === "mobile" ? { x: umapOffsetPC.x + umapOffsetMobile.x, y: umapOffsetPC.y + umapOffsetMobile.y } : umapOffsetPC}
+              onUpdateUmapOffset={setUmapOffsetPC}
               selectedBinId={selectedBinId}
               onSelectBin={setSelectedBinId}
               placingBinId={placingBinId}
@@ -594,53 +595,38 @@ export default function App() {
               onDeleteBin={handleDeleteBin}
               onStartPlacing={handleStartPlacing}
               onAddAndPlaceBin={handleAddAndPlaceBin}
+              umapRefreshKey={umapRefreshKey}
             />
             {isExternal && showCalibration && (
               <div className="absolute bottom-20 left-4 z-[400] bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-[#D9D3C7]">
                 <h3 className="text-xs font-bold text-[#3C413A] mb-2 text-center">Calibrage</h3>
                 <div className="flex flex-col items-center gap-1">
                   <button
-                    onClick={() => {
-                      const offset = deviceType === "mobile" ? umapOffsetMobile : umapOffsetPC;
-                      const setOffset = deviceType === "mobile" ? setUmapOffsetMobile : setUmapOffsetPC;
-                      setOffset({ ...offset, y: offset.y - 10 });
-                    }}
+                    onClick={() => setUmapOffsetPC({ ...umapOffsetPC, y: umapOffsetPC.y - 10 })}
                     className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
                   >
                     <ArrowUp size={20} className="text-[#3C413A]" />
                   </button>
                   <div className="flex gap-1">
                     <button
-                      onClick={() => {
-                        const offset = deviceType === "mobile" ? umapOffsetMobile : umapOffsetPC;
-                        const setOffset = deviceType === "mobile" ? setUmapOffsetMobile : setUmapOffsetPC;
-                        setOffset({ ...offset, x: offset.x - 10 });
-                      }}
+                      onClick={() => setUmapOffsetPC({ ...umapOffsetPC, x: umapOffsetPC.x - 10 })}
                       className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
                     >
                       <ArrowLeft size={20} className="text-[#3C413A]" />
                     </button>
                     <div className="w-12 flex flex-col items-center justify-center font-mono text-[10px] text-[#7A8275]">
-                      <div>X: {deviceType === "mobile" ? umapOffsetMobile.x : umapOffsetPC.x}</div>
-                      <div>Y: {deviceType === "mobile" ? umapOffsetMobile.y : umapOffsetPC.y}</div>
+                      <div>X: {umapOffsetPC.x}</div>
+                      <div>Y: {umapOffsetPC.y}</div>
                     </div>
                     <button
-                      onClick={() => {
-                        const offset = deviceType === "mobile" ? umapOffsetMobile : umapOffsetPC;
-                        const setOffset = deviceType === "mobile" ? setUmapOffsetMobile : setUmapOffsetPC;
-                        setOffset({ ...offset, x: offset.x + 10 });
-                      }}
+                      onClick={() => setUmapOffsetPC({ ...umapOffsetPC, x: umapOffsetPC.x + 10 })}
                       className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
                     >
                       <ArrowRight size={20} className="text-[#3C413A]" />
                     </button>
                   </div>
                   <button
-                    onClick={() => {
-                      const offset = deviceType === "mobile" ? umapOffsetMobile : umapOffsetPC;
-                      const setOffset = deviceType === "mobile" ? setUmapOffsetMobile : setUmapOffsetPC;
-                      setOffset({ ...offset, y: offset.y + 10 });
-                    }}
+                    onClick={() => setUmapOffsetPC({ ...umapOffsetPC, y: umapOffsetPC.y + 10 })}
                     className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
                   >
                     <ArrowDown size={20} className="text-[#3C413A]" />
@@ -676,6 +662,7 @@ export default function App() {
             onUpdateUmapOffsetPC={setUmapOffsetPC}
             umapOffsetMobile={umapOffsetMobile}
             onUpdateUmapOffsetMobile={setUmapOffsetMobile}
+            onRefreshUmap={() => setUmapRefreshKey(k => k + 1)}
           />
         )}
 

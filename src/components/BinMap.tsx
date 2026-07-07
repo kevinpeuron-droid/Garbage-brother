@@ -113,6 +113,7 @@ interface BinMapProps {
   onUpdateAllBins?: (updater: (bins: TrashBin[]) => TrashBin[]) => void;
   umapOffset?: { x: number; y: number };
   onUpdateUmapOffset?: (offset: { x: number; y: number }) => void;
+  umapRefreshKey?: number;
 }
 
 export default function BinMap({
@@ -132,6 +133,7 @@ export default function BinMap({
   onUpdateAllBins,
   umapOffset = { x: 0, y: -23 },
   onUpdateUmapOffset,
+  umapRefreshKey = 0,
 }: BinMapProps) {
   const [deutzSubMode, setDeutzSubMode] = useState<"pose" | "depose">("pose");
 
@@ -152,10 +154,10 @@ export default function BinMap({
     });
 
   const [zoomLevel, setZoomLevel] = useState(15);
-  const [isUmapInteractive, setIsUmapInteractive] = useState(false);
   const [calibState, setCalibState] = useState<
     "idle" | "step1_bin" | "step2_map"
   >("idle");
+  const [showUmapData, setShowUmapData] = useState(false);
   const [calibBinPoint, setCalibBinPoint] = useState<{
     lat: number;
     lng: number;
@@ -202,51 +204,77 @@ export default function BinMap({
   );
 
   const umapBaseUrl =
-    "https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false";
+    `https://umap.vieillescharrues.bzh/fr/map/recap-container_20?scaleControl=false&miniMap=false&scrollWheelZoom=false&zoomControl=false&allowEdit=false&moreControl=true&searchControl=null&tilelayersControl=null&embedControl=null&datalayersControl=true&onLoadPanel=none&captionBar=false${showUmapData ? "" : "&datalayers=none"}`;
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const UmapSync = () => {
+      const UmapSync = () => {
     const map = useMap();
+    const [iframeRefState, setIframeRefState] = React.useState<{
+      center: L.LatLng;
+      zoom: number;
+    } | null>(null);
 
     React.useEffect(() => {
+      if (!iframeRef.current) return;
+      
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      
+      const baseUrl = umapBaseUrl.split('#')[0];
+      const newSrc = `${baseUrl}#${zoom}/${center.lat}/${center.lng}`;
+      iframeRef.current.src = newSrc;
+      
+      setIframeRefState({ center, zoom });
+    }, [map, umapRefreshKey, umapBaseUrl]);
+
+    React.useEffect(() => {
+      if (!iframeRefState) return;
+
       const onMove = () => {
         if (!iframeRef.current) return;
         
-        const pt = map.latLngToContainerPoint(map.getCenter());
-        const adjustedPt = L.point(pt.x - umapOffset.x, pt.y - umapOffset.y);
-        const adjustedLatLng = map.containerPointToLatLng(adjustedPt);
+        const currentZoom = map.getZoom();
+        const scale = map.getZoomScale(currentZoom, iframeRefState.zoom);
         
-        const zoom = map.getZoom();
+        const targetScreenPt = map.latLngToContainerPoint(iframeRefState.center);
+        const centerScreenPt = map.latLngToContainerPoint(map.getCenter());
         
-        const baseUrl = umapBaseUrl.split('#')[0];
-        const newSrc = `${baseUrl}#${zoom}/${adjustedLatLng.lat}/${adjustedLatLng.lng}`;
+        let dx = targetScreenPt.x - centerScreenPt.x;
+        let dy = targetScreenPt.y - centerScreenPt.y;
         
-        if (iframeRef.current.src !== newSrc) {
-          iframeRef.current.src = newSrc;
+        dx += umapOffset.x;
+        dy += umapOffset.y;
+
+        iframeRef.current.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+        iframeRef.current.style.transformOrigin = 'center center';
+      };
+
+      let ticking = false;
+      const onMoveRAF = () => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            onMove();
+            ticking = false;
+          });
+          ticking = true;
         }
       };
 
-      let timeout: any;
-      const debouncedOnMove = () => {
-        clearTimeout(timeout);
-        timeout = setTimeout(onMove, 100);
-      };
-
-      map.on("move zoom resize", debouncedOnMove);
-      onMove(); // initial update
+      map.on("move zoom resize", onMoveRAF);
+      onMove();
 
       const resizeObserver = new ResizeObserver(() => {
         map.invalidateSize();
-        debouncedOnMove();
+        onMoveRAF();
       });
       resizeObserver.observe(map.getContainer());
 
       return () => {
-        map.off("move zoom resize", debouncedOnMove);
-        clearTimeout(timeout);
+        map.off("move zoom resize", onMoveRAF);
         resizeObserver.disconnect();
       };
-    }, [map, umapOffset]);
+    }, [map, iframeRefState, umapOffset]);
+
     return null;
   };
 
@@ -296,16 +324,21 @@ export default function BinMap({
           </button>
         </div>
       )}
-      <iframe
-        ref={iframeRef}
-        src={`${umapBaseUrl}#17/48.271993/-3.560402`}
-        className="absolute inset-0 z-0 w-full h-full"
-        style={{
-          border: "none",
-          pointerEvents: "auto",
-        }}
-        title="Umap Background"
-      />
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <iframe
+          ref={iframeRef}
+          src={`${umapBaseUrl}#17/48.271993/-3.560402`}
+          className="absolute z-0 pointer-events-none"
+          style={{
+            border: "none",
+            width: "200%",
+            height: "200%",
+            left: "-50%",
+            top: "-50%",
+          }}
+          title="Umap Background"
+        />
+      </div>
       <MapContainer
         center={[48.271993, -3.560402]}
         zoom={17}
@@ -316,7 +349,7 @@ export default function BinMap({
           width: "100%",
           zIndex: 1,
           backgroundColor: "transparent",
-          pointerEvents: isUmapInteractive ? "none" : "auto",
+          pointerEvents: "auto",
           cursor:
             placingBinId || calibState === "step2_map" ? "crosshair" : "grab",
         }}
@@ -701,10 +734,10 @@ export default function BinMap({
       {/* Umap Interaction Toggle */}
       <div className="absolute bottom-4 left-4 z-[1000] pointer-events-auto">
         <button
-          onClick={() => setIsUmapInteractive(!isUmapInteractive)}
-          className={`px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-colors border ${isUmapInteractive ? 'bg-[#3B82F6] text-white border-[#2563EB]' : 'bg-white text-[#7A8275] border-[#E5E0D5] hover:bg-[#F4F1EA]'}`}
+          onClick={() => setShowUmapData(!showUmapData)}
+          className={`px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-colors border ${!showUmapData ? 'bg-[#3B82F6] text-white border-[#2563EB]' : 'bg-white text-[#7A8275] border-[#E5E0D5] hover:bg-[#F4F1EA]'}`}
         >
-          {isUmapInteractive ? "Verrouiller le fond de carte" : "Interagir avec le fond de carte"}
+          {showUmapData ? "Cacher les filtres Umap" : "Afficher les filtres Umap"}
         </button>
       </div>
 
@@ -754,62 +787,7 @@ export default function BinMap({
               )}
             </div>
 
-            {onUpdateUmapOffset && (
-              <div className="mb-4 p-3 bg-[#F4F1EA] rounded-lg border border-[#D9D3C7]">
-                <h4 className="text-[10px] font-bold text-[#7A8275] uppercase mb-2 text-center">
-                  Déplacer le fond Umap
-                </h4>
-                <div className="flex flex-col items-center gap-1">
-                  <button
-                    onClick={() =>
-                      onUpdateUmapOffset({ ...umapOffset, y: umapOffset.y - 5 })
-                    }
-                    className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
-                    title="Monter"
-                  >
-                    <ArrowUp size={16} className="text-[#3C413A]" />
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() =>
-                        onUpdateUmapOffset({
-                          ...umapOffset,
-                          x: umapOffset.x - 5,
-                        })
-                      }
-                      className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
-                      title="Gauche"
-                    >
-                      <ArrowLeft size={16} className="text-[#3C413A]" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        onUpdateUmapOffset({
-                          ...umapOffset,
-                          y: umapOffset.y + 5,
-                        })
-                      }
-                      className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
-                      title="Descendre"
-                    >
-                      <ArrowDown size={16} className="text-[#3C413A]" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        onUpdateUmapOffset({
-                          ...umapOffset,
-                          x: umapOffset.x + 5,
-                        })
-                      }
-                      className="p-1 bg-white hover:bg-[#EBE7DF] rounded shadow-sm border border-[#D9D3C7]"
-                      title="Droite"
-                    >
-                      <ArrowRight size={16} className="text-[#3C413A]" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            
 
             <p className="text-xs text-[#7A8275] mb-2">
               L'arrière-plan du plan utilise la carte UMap:{" "}
