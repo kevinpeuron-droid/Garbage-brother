@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import useSupercluster from 'use-supercluster';
 import {
   MapContainer,
   Marker,
@@ -114,7 +115,341 @@ interface BinMapProps {
   umapOffset?: { x: number; y: number };
   onUpdateUmapOffset?: (offset: { x: number; y: number }) => void;
   umapRefreshKey?: number;
+  showUmapData?: boolean;
+  onUpdateShowUmapData?: (val: boolean) => void;
 }
+
+
+const BinPopupContent = ({ bin, binTypes, binCategories, mode, deutzSubMode, onUpdateBin, onUpdateStatus, onDeleteBin }: any) => {
+  const typeConfig = binTypes.find((t: any) => t.id === bin.type);
+  const categoryConfig = typeConfig ? binCategories.find((c: any) => c.id === typeConfig.categoryId) : undefined;
+  return (
+    <>
+      
+                <div className="p-1 min-w-[200px] text-[#3C413A] font-sans">
+                  <h3 className="font-bold text-sm mb-1 text-[#4B6345]">
+                    {bin.name}
+                  </h3>
+                  <p className="text-xs text-[#7A8275] mb-1 font-medium">
+                    Nombre: {bin.count || 1}
+                  </p>
+                  <p className="text-xs text-[#7A8275] mb-1 font-medium">
+                    Zone: {bin.zone}
+                  </p>
+                  {typeConfig && (
+                    <p
+                      className="text-xs font-bold mb-3"
+                      style={{ color: typeConfig.color }}
+                    >
+                      Type: {typeConfig.label}
+                    </p>
+                  )}
+
+                  <div className="mb-3 space-y-2 border-t border-[#E5E0D5] pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={bin.urgentPlacement || false}
+                        onChange={(e) =>
+                          onUpdateBin &&
+                          onUpdateBin(bin.id, {
+                            urgentPlacement: e.target.checked,
+                          })
+                        }
+                        className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#DC2626] focus:ring-[#DC2626]"
+                      />
+                      <span
+                        className={`text-[10px] font-bold transition-colors ${bin.urgentPlacement ? "text-[#DC2626]" : "text-[#7A8275]"}`}
+                      >
+                        À poser en priorité
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={bin.urgentRemoval || false}
+                        onChange={(e) =>
+                          onUpdateBin &&
+                          onUpdateBin(bin.id, {
+                            urgentRemoval: e.target.checked,
+                          })
+                        }
+                        className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#D4A373] focus:ring-[#D4A373]"
+                      />
+                      <span
+                        className={`text-[10px] font-bold transition-colors ${bin.urgentRemoval ? "text-[#D4A373]" : "text-[#7A8275]"}`}
+                      >
+                        À déposer en priorité
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={bin.maintenanceRequired || false}
+                        onChange={(e) =>
+                          onUpdateBin &&
+                          onUpdateBin(bin.id, {
+                            maintenanceRequired: e.target.checked,
+                          })
+                        }
+                        className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#9333EA] focus:ring-[#9333EA]"
+                      />
+                      <span
+                        className={`text-[10px] font-bold transition-colors ${bin.maintenanceRequired ? "text-[#9333EA]" : "text-[#7A8275]"}`}
+                      >
+                        Maintenance nécessaire
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="mb-3">
+                    <p className="text-[10px] font-bold uppercase text-[#7A8275] mb-2">
+                      Changer le statut
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {mode === "map_deutz" && deutzSubMode === "pose" && (
+                        <>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "to_install")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            À poser
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "installed")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Posée
+                          </button>
+                          <button
+                            onClick={() =>
+                              onUpdateStatus(bin.id, "overflowing")
+                            }
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
+                          >
+                            🚨 Archi pleine
+                          </button>
+                        </>
+                      )}
+                      {mode === "map_deutz" && deutzSubMode === "depose" && (
+                        <>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "to_remove")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            À retirer
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "removed")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Retirée
+                          </button>
+                          <button
+                            onClick={() =>
+                              onUpdateStatus(bin.id, "overflowing")
+                            }
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
+                          >
+                            🚨 Archi pleine
+                          </button>
+                        </>
+                      )}
+                      {mode !== "map_deutz" && (
+                        <>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "to_install")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            À poser
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "installed")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Posée
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "to_remove")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            À retirer
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "removed")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Retirée
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "missing")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
+                          >
+                            Manquante
+                          </button>
+                          <button
+                            onClick={() => onUpdateStatus(bin.id, "overflowing")}
+                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
+                          >
+                            🚨 Archi pleine
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-[#A08E78] pt-2 pb-2 border-t border-[#E5E0D5]">
+                    Dernière collecte:{" "}
+                    {new Date(bin.lastEmptied).toLocaleTimeString()}
+                  </div>
+                  {mode === "map_edition" && (
+                    <button
+                      onClick={() => onDeleteBin(bin.id)}
+                      className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#F4F1EA] text-[#916738] border border-[#D9D3C7] hover:bg-[#D9D3C7]"
+                    >
+                      Supprimer du plan
+                    </button>
+                  )}
+                </div>
+              
+    </>
+  );
+};
+
+const createClusterIcon = (colors: string[], count: number, zoomLevel: number) => {
+  const baseZoom = 18;
+  const baseSize = 32;
+  const size = Math.max(16, baseSize * Math.pow(2, zoomLevel - baseZoom));
+
+  let gradientStr = "";
+  if (colors.length === 0) {
+    gradientStr = "white";
+  } else if (colors.length === 1) {
+    gradientStr = colors[0];
+  } else {
+    const step = 100 / colors.length;
+    gradientStr = `conic-gradient(${colors.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`).join(", ")})`;
+  }
+
+  const content = `<span style="color: white; font-size: ${Math.max(10, size/2.5)}px; font-weight: bold; text-shadow: 0 0 3px rgba(0,0,0,0.8);">${count}</span>`;
+  
+  return new L.DivIcon({
+    className: "custom-cluster-icon",
+    html: `<div style="background: ${gradientStr}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${Math.max(2, size/8)}px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">${content}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+};
+
+const MapMarkers = ({ bins, binTypes, binCategories, mode, deutzSubMode, calibState, setCalibState, setCalibBinPoint, onUpdateBin, onUpdateStatus, onDeleteBin }: any) => {
+  const map = useMap();
+  const [bounds, setBounds] = React.useState<number[] | null>(null);
+  const [zoom, setZoom] = React.useState(map.getZoom());
+
+  React.useEffect(() => {
+    const updateBounds = () => {
+      const b = map.getBounds();
+      setBounds([
+        b.getWest(),
+        b.getSouth(),
+        b.getEast(),
+        b.getNorth()
+      ]);
+      setZoom(map.getZoom());
+    };
+    updateBounds();
+    map.on('moveend', updateBounds);
+    map.on('zoomend', updateBounds);
+    return () => {
+      map.off('moveend', updateBounds);
+      map.off('zoomend', updateBounds);
+    };
+  }, [map]);
+
+  const points = bins.map((bin: any) => ({
+    type: "Feature",
+    properties: { cluster: false, binId: bin.id, bin },
+    geometry: { type: "Point", coordinates: [bin.lng, bin.lat] }
+  }));
+
+  const { clusters, supercluster } = useSupercluster({
+    points,
+    bounds,
+    zoom: zoom,
+    options: { radius: 30, maxZoom: 22 }
+  });
+
+  return (
+    <>
+      {clusters.map((cluster) => {
+        const [lng, lat] = cluster.geometry.coordinates;
+        const { cluster: isCluster, point_count: pointCount } = cluster.properties;
+
+        if (isCluster) {
+          const leaves = supercluster.getLeaves(cluster.id as number, Infinity);
+          const binLeaves = leaves.map((l: any) => l.properties.bin);
+          const colors = binLeaves.map((bin: any) => getBinStyle(bin, binTypes, binCategories).fillColor);
+          
+          return (
+            <Marker key={`cluster-${cluster.id}`} position={[lat, lng]} icon={createClusterIcon(colors, pointCount, zoom)}>
+              <Popup className="cluster-popup" maxWidth={800}>
+                <div className="flex gap-4 overflow-x-auto p-2" style={{ maxWidth: '80vw' }}>
+                  {binLeaves.map((bin: any) => (
+                    <div key={bin.id} className="flex-shrink-0 w-[240px] border border-[#E5E0D5] p-2 rounded-lg bg-white shadow-sm">
+                      <BinPopupContent 
+                         bin={bin} 
+                         binTypes={binTypes} 
+                         binCategories={binCategories} 
+                         mode={mode} 
+                         deutzSubMode={deutzSubMode} 
+                         onUpdateBin={onUpdateBin} 
+                         onUpdateStatus={onUpdateStatus} 
+                         onDeleteBin={onDeleteBin} 
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        }
+
+        const bin = cluster.properties.bin;
+        const { fillColor, borderColor } = getBinStyle(bin, binTypes, binCategories);
+        return (
+          <Marker 
+            key={bin.id} 
+            position={[lat, lng]} 
+            icon={createIcon(fillColor, borderColor, bin.count, zoom)}
+            eventHandlers={{
+              click: (e) => {
+                if (calibState === "step1_bin") {
+                  setCalibBinPoint({ lat: bin.lat as number, lng: bin.lng as number });
+                  setCalibState("step2_map");
+                  e.originalEvent.preventDefault();
+                  e.originalEvent.stopPropagation();
+                  return;
+                }
+              }
+            }}
+          >
+            <Popup>
+               <BinPopupContent 
+                 bin={bin} 
+                 binTypes={binTypes} 
+                 binCategories={binCategories} 
+                 mode={mode} 
+                 deutzSubMode={deutzSubMode} 
+                 onUpdateBin={onUpdateBin} 
+                 onUpdateStatus={onUpdateStatus} 
+                 onDeleteBin={onDeleteBin} 
+               />
+            </Popup>
+          </Marker>
+        );
+      })}
+    </>
+  );
+};
 
 export default function BinMap({
   bins,
@@ -134,6 +469,8 @@ export default function BinMap({
   umapOffset = { x: 0, y: -23 },
   onUpdateUmapOffset,
   umapRefreshKey = 0,
+  showUmapData = false,
+  onUpdateShowUmapData,
 }: BinMapProps) {
   const [deutzSubMode, setDeutzSubMode] = useState<"pose" | "depose">("pose");
 
@@ -157,8 +494,7 @@ export default function BinMap({
   const [calibState, setCalibState] = useState<
     "idle" | "step1_bin" | "step2_map"
   >("idle");
-  const [showUmapData, setShowUmapData] = useState(false);
-  const [calibBinPoint, setCalibBinPoint] = useState<{
+    const [calibBinPoint, setCalibBinPoint] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
@@ -359,218 +695,20 @@ export default function BinMap({
 
         <MapEvents onMapClick={handleMapClick} onZoomChange={setZoomLevel} />
 
-        {placedBins.map((bin) => {
-          const typeConfig = binTypes.find((t) => t.id === bin.type);
-          const { fillColor, borderColor } = getBinStyle(bin, binTypes, binCategories);
-          return (
-            <Marker
-              key={bin.id}
-              position={[bin.lat as number, bin.lng as number]}
-              icon={createIcon(fillColor, borderColor, bin.count, zoomLevel)}
-              eventHandlers={{
-                click: (e) => {
-                  if (calibState === "step1_bin") {
-                    setCalibBinPoint({
-                      lat: bin.lat as number,
-                      lng: bin.lng as number,
-                    });
-                    setCalibState("step2_map");
-                    e.originalEvent.preventDefault();
-                    e.originalEvent.stopPropagation();
-                    return;
-                  }
-                },
-              }}
-            >
-              <Popup>
-                <div className="p-1 min-w-[200px] text-[#3C413A] font-sans">
-                  <h3 className="font-bold text-sm mb-1 text-[#4B6345]">
-                    {bin.name}
-                  </h3>
-                  <p className="text-xs text-[#7A8275] mb-1 font-medium">
-                    Nombre: {bin.count || 1}
-                  </p>
-                  <p className="text-xs text-[#7A8275] mb-1 font-medium">
-                    Zone: {bin.zone}
-                  </p>
-                  {typeConfig && (
-                    <p
-                      className="text-xs font-bold mb-3"
-                      style={{ color: typeConfig.color }}
-                    >
-                      Type: {typeConfig.label}
-                    </p>
-                  )}
-
-                  <div className="mb-3 space-y-2 border-t border-[#E5E0D5] pt-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={bin.urgentPlacement || false}
-                        onChange={(e) =>
-                          onUpdateBin &&
-                          onUpdateBin(bin.id, {
-                            urgentPlacement: e.target.checked,
-                          })
-                        }
-                        className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#DC2626] focus:ring-[#DC2626]"
-                      />
-                      <span
-                        className={`text-[10px] font-bold transition-colors ${bin.urgentPlacement ? "text-[#DC2626]" : "text-[#7A8275]"}`}
-                      >
-                        À poser en priorité
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={bin.urgentRemoval || false}
-                        onChange={(e) =>
-                          onUpdateBin &&
-                          onUpdateBin(bin.id, {
-                            urgentRemoval: e.target.checked,
-                          })
-                        }
-                        className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#D4A373] focus:ring-[#D4A373]"
-                      />
-                      <span
-                        className={`text-[10px] font-bold transition-colors ${bin.urgentRemoval ? "text-[#D4A373]" : "text-[#7A8275]"}`}
-                      >
-                        À déposer en priorité
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={bin.maintenanceRequired || false}
-                        onChange={(e) =>
-                          onUpdateBin &&
-                          onUpdateBin(bin.id, {
-                            maintenanceRequired: e.target.checked,
-                          })
-                        }
-                        className="w-3.5 h-3.5 rounded border-[#D9D3C7] text-[#9333EA] focus:ring-[#9333EA]"
-                      />
-                      <span
-                        className={`text-[10px] font-bold transition-colors ${bin.maintenanceRequired ? "text-[#9333EA]" : "text-[#7A8275]"}`}
-                      >
-                        Maintenance nécessaire
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="mb-3">
-                    <p className="text-[10px] font-bold uppercase text-[#7A8275] mb-2">
-                      Changer le statut
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {mode === "map_deutz" && deutzSubMode === "pose" && (
-                        <>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "to_install")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            À poser
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "installed")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            Posée
-                          </button>
-                          <button
-                            onClick={() =>
-                              onUpdateStatus(bin.id, "overflowing")
-                            }
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
-                          >
-                            🚨 Archi pleine
-                          </button>
-                        </>
-                      )}
-                      {mode === "map_deutz" && deutzSubMode === "depose" && (
-                        <>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "to_remove")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            À retirer
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "removed")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            Retirée
-                          </button>
-                          <button
-                            onClick={() =>
-                              onUpdateStatus(bin.id, "overflowing")
-                            }
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors col-span-2 ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
-                          >
-                            🚨 Archi pleine
-                          </button>
-                        </>
-                      )}
-                      {mode !== "map_deutz" && (
-                        <>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "to_install")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            À poser
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "installed")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            Posée
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "to_remove")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            À retirer
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "removed")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            Retirée
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "missing")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#EBE7DF] text-[#7A8275] hover:bg-[#D9D3C7]"}`}
-                          >
-                            Manquante
-                          </button>
-                          <button
-                            onClick={() => onUpdateStatus(bin.id, "overflowing")}
-                            className={`px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors ${bin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
-                          >
-                            🚨 Archi pleine
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-[#A08E78] pt-2 pb-2 border-t border-[#E5E0D5]">
-                    Dernière collecte:{" "}
-                    {new Date(bin.lastEmptied).toLocaleTimeString()}
-                  </div>
-                  {mode === "map_edition" && (
-                    <button
-                      onClick={() => onDeleteBin(bin.id)}
-                      className="w-full px-2 py-1.5 text-[10px] font-bold uppercase rounded transition-colors bg-[#F4F1EA] text-[#916738] border border-[#D9D3C7] hover:bg-[#D9D3C7]"
-                    >
-                      Supprimer du plan
-                    </button>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        
+        <MapMarkers 
+          bins={placedBins}
+          binTypes={binTypes}
+          binCategories={binCategories}
+          mode={mode}
+          deutzSubMode={deutzSubMode}
+          calibState={calibState}
+          setCalibState={setCalibState}
+          setCalibBinPoint={setCalibBinPoint}
+          onUpdateBin={onUpdateBin}
+          onUpdateStatus={onUpdateStatus}
+          onDeleteBin={onDeleteBin}
+        />
       </MapContainer>
 
       <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2 pointer-events-none">
@@ -732,14 +870,16 @@ export default function BinMap({
         )}
 
       {/* Umap Interaction Toggle */}
-      <div className="absolute bottom-4 left-4 z-[1000] pointer-events-auto">
-        <button
-          onClick={() => setShowUmapData(!showUmapData)}
-          className={`px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-colors border ${!showUmapData ? 'bg-[#3B82F6] text-white border-[#2563EB]' : 'bg-white text-[#7A8275] border-[#E5E0D5] hover:bg-[#F4F1EA]'}`}
-        >
-          {showUmapData ? "Cacher les filtres Umap" : "Afficher les filtres Umap"}
-        </button>
-      </div>
+      {onUpdateShowUmapData && (
+        <div className="absolute bottom-4 left-4 z-[1000] pointer-events-auto">
+          <button
+            onClick={() => onUpdateShowUmapData(!showUmapData)}
+            className={`px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-colors border ${!showUmapData ? 'bg-[#3B82F6] text-white border-[#2563EB]' : 'bg-white text-[#7A8275] border-[#E5E0D5] hover:bg-[#F4F1EA]'}`}
+          >
+            {showUmapData ? "Cacher les filtres Umap" : "Afficher les filtres Umap"}
+          </button>
+        </div>
+      )}
 
     </div>
   );

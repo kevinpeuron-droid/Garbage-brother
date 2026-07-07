@@ -98,6 +98,7 @@ export default function App() {
   const [isDbLoaded, setIsDbLoaded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [umapRefreshKey, setUmapRefreshKey] = useState(0);
+  const [showUmapData, _setShowUmapData] = useState(false);
 
   useEffect(() => {
     const docRef = doc(db, "maps", "clean_v1");
@@ -113,6 +114,7 @@ export default function App() {
           if (data.binCategories) _setBinCategories(data.binCategories);
           if (data.umapOffsetPC) _setUmapOffsetPC(data.umapOffsetPC);
           if (data.umapOffsetMobile) _setUmapOffsetMobile(data.umapOffsetMobile);
+          if (data.showUmapData !== undefined) _setShowUmapData(data.showUmapData);
         } else {
           // Initialize if empty
           setDoc(docRef, { 
@@ -122,7 +124,8 @@ export default function App() {
             binTypes: defaultBinTypes,
             binCategories: defaultBinCategories,
             umapOffsetPC: { x: 0, y: -23 },
-            umapOffsetMobile: { x: 0, y: -23 }
+            umapOffsetMobile: { x: 0, y: -23 },
+            showUmapData: false
           }).catch((err) => {
             handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1");
           });
@@ -225,6 +228,13 @@ export default function App() {
           .catch((err) => handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"));
       return updated;
     });
+  };
+
+  const setShowUmapData = (val: boolean) => {
+    _setShowUmapData(val);
+    if (isDbLoaded)
+      setDoc(doc(db, "maps", "clean_v1"), { showUmapData: val }, { merge: true })
+        .catch((err) => handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"));
   };
 
   const [viewMode, setViewMode] = useState<ViewMode>("map");
@@ -596,6 +606,8 @@ export default function App() {
               onStartPlacing={handleStartPlacing}
               onAddAndPlaceBin={handleAddAndPlaceBin}
               umapRefreshKey={umapRefreshKey}
+              showUmapData={showUmapData}
+              onUpdateShowUmapData={!isExternal ? setShowUmapData : undefined}
             />
             {isExternal && showCalibration && (
               <div className="absolute bottom-20 left-4 z-[400] bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-[#D9D3C7]">

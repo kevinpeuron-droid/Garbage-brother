@@ -2,25 +2,13 @@ const fs = require('fs');
 let code = fs.readFileSync('src/components/BinMap.tsx', 'utf-8');
 
 code = code.replace(
-`  onUpdateAllBins?: (updater: (bins: TrashBin[]) => TrashBin[]) => void;
-  umapOffset?: { x: number; y: number };
-  onUpdateUmapOffset?: (offset: { x: number; y: number }) => void;
-}`,
-`  onUpdateAllBins?: (updater: (bins: TrashBin[]) => TrashBin[]) => void;
-  umapOffset?: { x: number; y: number };
-  onUpdateUmapOffset?: (offset: { x: number; y: number }) => void;
-  umapRefreshKey?: number;
-}`
+  '  umapRefreshKey?: number;',
+  '  umapRefreshKey?: number;\n  showUmapData?: boolean;\n  onUpdateShowUmapData?: (val: boolean) => void;'
 );
 
 code = code.replace(
-`  umapOffset = { x: 0, y: 0 },
-  onUpdateUmapOffset,
-}: BinMapProps) {`,
-`  umapOffset = { x: 0, y: 0 },
-  onUpdateUmapOffset,
-  umapRefreshKey = 0,
-}: BinMapProps) {`
+  '  umapRefreshKey = 0,\n}: BinMapProps) {',
+  '  umapRefreshKey = 0,\n  showUmapData = false,\n  onUpdateShowUmapData,\n}: BinMapProps) {'
 );
 
 fs.writeFileSync('src/components/BinMap.tsx', code);
