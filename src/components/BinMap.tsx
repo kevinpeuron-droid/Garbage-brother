@@ -49,10 +49,10 @@ L.Icon.Default.mergeOptions({
 
 const iconCache: Record<string, L.DivIcon> = {};
 
-const getCachedIcon = (fillColor: string, borderColor: string, count: number | undefined, zoomLevel: number) => {
-  const key = `${fillColor}-${borderColor}-${count}-${zoomLevel}`;
+const getCachedIcon = (fillColor: string, borderColor: string, count: number | undefined, zoomLevel: number, isOverflowing: boolean = false) => {
+  const key = `${fillColor}-${borderColor}-${count}-${zoomLevel}-${isOverflowing}`;
   if (!iconCache[key]) {
-    iconCache[key] = createIcon(fillColor, borderColor, count, zoomLevel);
+    iconCache[key] = createIcon(fillColor, borderColor, count, zoomLevel, isOverflowing);
   }
   return iconCache[key];
 };
@@ -67,15 +67,44 @@ const getCachedClusterIcon = (colors: string[], count: number, zoomLevel: number
   return clusterIconCache[key];
 };
 
-const createIcon = (fillColor: string, borderColor: string, count: number | undefined, zoomLevel: number) => {
+const createIcon = (fillColor: string, borderColor: string, count: number | undefined, zoomLevel: number, isOverflowing: boolean = false) => {
   const baseZoom = 18;
   const baseSize = 24;
   const size = Math.min(36, Math.max(10, baseSize * Math.pow(1.5, zoomLevel - baseZoom))); // Min size 10px, max 36px
 
+  const textColor = isOverflowing ? "white" : (borderColor === "white" ? "white" : borderColor);
+  
   const content =
     count && count > 1
-      ? `<span style="color: ${borderColor === "white" ? "white" : borderColor}; font-size: ${Math.max(8, size/2.5)}px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${count}</span>`
+      ? `<span style="color: ${textColor}; font-size: ${Math.max(8, size/2.5)}px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${count}</span>`
       : "";
+
+  if (isOverflowing) {
+    const html = `
+      <div style="
+        width: 0;
+        height: 0;
+        border-left: ${size/1.2}px solid transparent;
+        border-right: ${size/1.2}px solid transparent;
+        border-bottom: ${size * 1.5}px solid #DC2626;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        position: relative;
+        display: flex;
+        justify-content: center;
+      ">
+        <div style="position: absolute; top: ${size * 0.7}px;">
+          ${content}
+        </div>
+      </div>
+    `;
+    return new L.DivIcon({
+      className: "custom-icon-triangle",
+      html,
+      iconSize: [size * 2, size * 1.5],
+      iconAnchor: [size, size * 0.75],
+    });
+  }
+
   return new L.DivIcon({
     className: "custom-icon",
     html: `<div style="background-color: ${fillColor}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${Math.max(1, size/8)}px solid ${borderColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">${content}</div>`,
@@ -146,7 +175,7 @@ const BinPopupContent = ({ bin, binTypes, binCategories, mode, deutzSubMode, onU
   const categoryConfig = typeConfig ? binCategories.find((c: any) => c.id === typeConfig.categoryId) : undefined;
 
   return (
-    <div className="flex flex-col gap-3 min-w-[220px] max-w-[280px] text-[#3C413A] font-sans">
+    <div className="flex flex-col gap-3 min-w-[220px] max-w-[280px] text-[#3C413A] font-sans" onClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
       <div className="flex flex-col gap-1">
         <h3 className="font-bold text-base text-[#4B6345] leading-tight">
           {bin.name}
@@ -414,7 +443,7 @@ const MapMarkers = ({ bins, binTypes, binCategories, mode, deutzSubMode, calibSt
           <Marker 
             key={bin.id} 
             position={[lat, lng]} 
-            icon={getCachedIcon(fillColor, borderColor, bin.count, zoom)}
+            icon={getCachedIcon(fillColor, borderColor, bin.count, zoom, bin.status === "overflowing")}
             eventHandlers={{
               click: (e) => {
                 if (calibState === "step1_bin") {
