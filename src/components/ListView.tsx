@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 import { TrashBin, BinTypeConfig } from "../types";
 import { Upload, Trash2, Check, X, FileUp, Settings2, AlertTriangle, MoreVertical, ArrowRight } from "lucide-react";
 
@@ -38,9 +39,8 @@ export default function ListView({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [importState, setImportState] = useState<{
-    workbook: ExcelJS.Workbook;
-    worksheet: ExcelJS.Worksheet;
-    headers: { index: number; name: string }[];
+    headers: { index: number; name: string; color?: string }[];
+    rows: { values: any[]; colors: Record<number, string> }[];
   } | null>(null);
 
   const [mapping, setMapping] = useState<ColumnMapping>({
@@ -75,39 +75,87 @@ export default function ListView({
       setIsImporting(true);
       const data = await file.arrayBuffer();
       
-      const workbook = new ExcelJS.Workbook();
-      
-      if (file.name.endsWith('.csv')) {
-        await workbook.csv.read(file.stream() as any);
-      } else {
-        await workbook.xlsx.load(data);
-      }
-      
-      const worksheet = workbook.worksheets[0];
-      const headerRow = worksheet.getRow(1);
-      
-      if (!headerRow || !headerRow.values) {
-         throw new Error("No header row found");
-      }
-      
-      const headers = headerRow.values as any[];
-      const extractedHeaders = [];
-      for (let i = 1; i < headers.length; i++) {
-        if (headers[i]) {
-          extractedHeaders.push({ index: i, name: headers[i].toString().trim() });
+      const extractedHeaders: { index: number; name: string; color?: string }[] = [];
+      const extractedRows: { values: any[]; colors: Record<number, string> }[] = [];
+
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        if (json.length > 0) {
+          const headerRow = json[0];
+          for (let i = 0; i < headerRow.length; i++) {
+            if (headerRow[i] !== undefined && headerRow[i] !== null) {
+              // we 1-index for consistency with exceljs
+              extractedHeaders.push({ index: i + 1, name: headerRow[i].toString().trim() });
+            }
+          }
+          for (let r = 1; r < json.length; r++) {
+            const rowArr = json[r];
+            const rowValues = [];
+            for (let c = 0; c < rowArr.length; c++) {
+              rowValues[c + 1] = rowArr[c];
+            }
+            extractedRows.push({ values: rowValues, colors: {} });
+          }
         }
+      } else {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(data);
+        const worksheet = workbook.worksheets[0] || workbook.getWorksheet(1);
+        if (!worksheet) {
+          throw new Error("No worksheet found in the Excel file");
+        }
+        const headerRow = worksheet.getRow(1);
+        
+        if (!headerRow || !headerRow.values) {
+           throw new Error("No header row found");
+        }
+        
+        const headers = headerRow.values as any[];
+        for (let i = 1; i < headers.length; i++) {
+          if (headers[i] !== undefined && headers[i] !== null) {
+            const headerCell = headerRow.getCell(i);
+            let hexColor = undefined;
+            if (headerCell.fill && headerCell.fill.type === 'pattern' && headerCell.fill.fgColor) {
+                const argb = headerCell.fill.fgColor.argb;
+                if (argb) hexColor = '#' + (argb.length === 8 ? argb.substring(2) : argb);
+            }
+            extractedHeaders.push({ index: i, name: headers[i].toString().trim(), color: hexColor });
+          }
+        }
+
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return;
+          const rowValues = row.values as any[];
+          const colors: Record<number, string> = {};
+          
+          row.eachCell((cell, colNumber) => {
+            if (cell.fill && cell.fill.type === 'pattern' && cell.fill.fgColor) {
+               const argb = cell.fill.fgColor.argb;
+               if (argb) colors[colNumber] = '#' + (argb.length === 8 ? argb.substring(2) : argb);
+            }
+            // Resolve formulas to value
+            if (cell.value && typeof cell.value === 'object' && 'result' in cell.value) {
+                rowValues[colNumber] = cell.value.result;
+            }
+          });
+          
+          extractedRows.push({ values: rowValues, colors });
+        });
       }
 
-      setImportState({ workbook, worksheet, headers: extractedHeaders });
+      setImportState({ headers: extractedHeaders, rows: extractedRows });
       
-      // Auto-guess mapping
       const newMapping: ColumnMapping = { locationCol: null, col1000: null, col300: null, col150: null };
       extractedHeaders.forEach(h => {
          const val = h.name.toLowerCase();
-         if (!newMapping.locationCol && (val.includes("emplacement") || val.includes("container") || val.includes("lieu"))) {
+         if (!newMapping.locationCol && (val.includes("emplacement") || val.includes("container") || val.includes("lieu") || val.includes("site"))) {
             newMapping.locationCol = h.index;
          }
-         if (!newMapping.col1000 && val.includes("4 roues") || val.includes("1000")) {
+         if (!newMapping.col1000 && (val.includes("4 roues") || val.includes("1000"))) {
             newMapping.col1000 = h.index;
          }
          if (!newMapping.col300 && val.includes("300")) {
@@ -131,13 +179,11 @@ export default function ListView({
   const executeImport = () => {
     if (!importState || !mapping.locationCol) return;
     
-    const { worksheet } = importState;
+    const { headers, rows } = importState;
     const importedBins: (Omit<TrashBin, "id" | "lastEmptied"> & { color?: string })[] = [];
     const newBinTypes = [...binTypes];
     let typesUpdated = false;
 
-    const headerRow = worksheet.getRow(1);
-    
     const mappedColumns = [
        { key: '4_roues', colIndex: mapping.col1000, fallbackLabel: '4 roues 1000L' },
        { key: '2_roues_300l', colIndex: mapping.col300, fallbackLabel: '2 roues 300L' },
@@ -146,13 +192,9 @@ export default function ListView({
 
     mappedColumns.forEach(mappedCol => {
        if (!mappedCol.colIndex) return;
-       const headerCell = headerRow.getCell(mappedCol.colIndex);
-       let hexColor = undefined;
-       if (headerCell.fill && headerCell.fill.type === 'pattern' && headerCell.fill.fgColor) {
-           const argb = headerCell.fill.fgColor.argb;
-           if (argb) hexColor = '#' + (argb.length === 8 ? argb.substring(2) : argb);
-       }
-       const headerText = headerCell.value ? headerCell.value.toString().trim() : mappedCol.fallbackLabel;
+       const headerInfo = headers.find(h => h.index === mappedCol.colIndex);
+       const hexColor = headerInfo?.color;
+       const headerText = headerInfo ? headerInfo.name : mappedCol.fallbackLabel;
        
        let existingType = newBinTypes.find(t => t.id === mappedCol.key);
        if (!existingType) {
@@ -170,35 +212,26 @@ export default function ListView({
        }
     });
 
-    worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; 
-        
-        const nameCell = row.getCell(mapping.locationCol!);
-        const name = nameCell.value?.toString();
-        if (!name) return;
+    rows.forEach((row) => {
+        const name = row.values[mapping.locationCol!]?.toString();
+        if (!name || name.trim() === '') return;
         
         mappedColumns.forEach(mappedCol => {
            if (!mappedCol.colIndex) return;
-           const cell = row.getCell(mappedCol.colIndex);
+           const val = row.values[mappedCol.colIndex];
            
            let count = 0;
-           if (typeof cell.value === 'number') {
-              count = cell.value;
-           } else if (typeof cell.value === 'string') {
-              count = parseInt(cell.value, 10) || 0;
-           } else if (cell.value && typeof cell.value === 'object' && 'result' in cell.value) {
-              count = parseInt(cell.value.result as string, 10) || 0;
+           if (typeof val === 'number') {
+              count = val;
+           } else if (typeof val === 'string') {
+              count = parseInt(val, 10) || 0;
            }
            
            if (count > 0) {
-              let cellHexColor = undefined;
-              if (cell.fill && cell.fill.type === 'pattern' && cell.fill.fgColor) {
-                 const argb = cell.fill.fgColor.argb;
-                 if (argb) cellHexColor = '#' + (argb.length === 8 ? argb.substring(2) : argb);
-              }
+              const cellHexColor = row.colors[mappedCol.colIndex];
 
               importedBins.push({
-                 name,
+                 name: name.trim(),
                  zone: "Excel",
                  type: mappedCol.key,
                  status: "to_install",
@@ -216,10 +249,6 @@ export default function ListView({
     }
 
     if (importedBins.length > 0) {
-       // Delete old bins from this type of import to "replace" the list?
-       // The user said "supprimer tout le mode listing et en recréé un". 
-       // We can just wipe all bins if they want a clean import, or just add them.
-       // Let's add them but use a confirmation inside the app.
        onImportBins(importedBins, "group");
     } else {
        alert("Aucune donnée valide trouvée dans le fichier avec ce mapping.");
