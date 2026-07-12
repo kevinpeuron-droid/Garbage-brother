@@ -24,11 +24,9 @@ export interface BinTypeConfig {
 }
 
 export const defaultBinTypes: BinTypeConfig[] = [
-  { id: '100l_peintes', label: '100L Peintes', categoryId: 'cat-default', color: '#60A5FA' },
-  { id: '100l_sans_roue', label: '100L sans roue', categoryId: 'cat-default', color: '#FBBF24' },
-  { id: '300l', label: '300L', categoryId: 'cat-default', color: '#34D399' },
-  { id: '1100l', label: '1100L', categoryId: 'cat-default', color: '#FB923C' },
-  { id: '1100l_point_dechet', label: '1100L Point Déchet', categoryId: 'cat-default', color: '#1E3A8A' },
+  { id: '4_roues', label: '4 roues', categoryId: 'cat-default', color: '#60A5FA' },
+  { id: '2_roues_300l', label: '2 roues 300L', categoryId: 'cat-default', color: '#34D399' },
+  { id: '2_roues_150l', label: '2 roues 150L', categoryId: 'cat-default', color: '#FB923C' },
 ];
 
 export interface TrashBin {
@@ -41,6 +39,7 @@ export interface TrashBin {
   lastEmptied: string; // ISO string
   zone: string;
   count?: number;
+  color?: string;
   urgentPlacement?: boolean;
   urgentRemoval?: boolean;
   maintenanceRequired?: boolean;

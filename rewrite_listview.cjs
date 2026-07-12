@@ -1,4 +1,6 @@
+const fs = require('fs');
 
+const code = `
 import React, { useState, useRef, useEffect } from "react";
 import ExcelJS from "exceljs";
 import { TrashBin, BinTypeConfig } from "../types";
@@ -387,7 +389,7 @@ export default function ListView({
                              />
                              <div 
                                onClick={() => setSelectedBin(bin)}
-                               className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg text-sm font-bold cursor-pointer transition-all shadow-sm hover:brightness-95 ${bin.status === "installed" ? "opacity-50" : ""} ${bin.urgentPlacement || bin.urgentRemoval || bin.maintenanceRequired ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}
+                               className={\`flex flex-col items-center justify-center w-10 h-10 rounded-lg text-sm font-bold cursor-pointer transition-all shadow-sm hover:brightness-95 \${bin.status === "installed" ? "opacity-50" : ""} \${bin.urgentPlacement || bin.urgentRemoval || bin.maintenanceRequired ? 'ring-2 ring-offset-1 ring-red-400' : ''}\`}
                                style={{ 
                                   backgroundColor: bin.color || t.color || (bin.status === "installed" ? "#6B8E63" : "#F4F1EA"),
                                   color: (bin.color || t.color) ? '#FFFFFF' : (bin.status === "installed" ? "#FFFFFF" : "#3C413A"),
@@ -437,37 +439,37 @@ export default function ListView({
                    <div className="grid grid-cols-2 gap-2">
                      <button
                        onClick={() => onUpdateStatus(selectedBin.id, "to_install")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                       className={\`p-2.5 text-sm font-bold rounded-lg transition-colors \${selectedBin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}\`}
                      >
                        À poser
                      </button>
                      <button
                        onClick={() => onUpdateStatus(selectedBin.id, "installed")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                       className={\`p-2.5 text-sm font-bold rounded-lg transition-colors \${selectedBin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}\`}
                      >
                        Posée
                      </button>
                      <button
                        onClick={() => onUpdateStatus(selectedBin.id, "to_remove")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                       className={\`p-2.5 text-sm font-bold rounded-lg transition-colors \${selectedBin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}\`}
                      >
                        À retirer
                      </button>
                      <button
                        onClick={() => onUpdateStatus(selectedBin.id, "removed")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                       className={\`p-2.5 text-sm font-bold rounded-lg transition-colors \${selectedBin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}\`}
                      >
                        Retirée
                      </button>
                      <button
                        onClick={() => onUpdateStatus(selectedBin.id, "missing")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                       className={\`p-2.5 text-sm font-bold rounded-lg transition-colors \${selectedBin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}\`}
                      >
                        Manquante
                      </button>
                      <button
                        onClick={() => onUpdateStatus(selectedBin.id, "overflowing")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-1 ${selectedBin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
+                       className={\`p-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-1 \${selectedBin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}\`}
                      >
                        <AlertTriangle size={16} /> Archi pleine
                      </button>
@@ -475,7 +477,7 @@ export default function ListView({
                    
                    <div className="space-y-2 pt-4 border-t border-[#E5E0D5]">
                      <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
-                       <span className={`text-sm font-bold ${selectedBin.urgentPlacement ? "text-[#DC2626]" : "text-[#7A8275]"}`}>
+                       <span className={\`text-sm font-bold \${selectedBin.urgentPlacement ? "text-[#DC2626]" : "text-[#7A8275]"}\`}>
                          À poser urgence
                        </span>
                        <input
@@ -486,7 +488,7 @@ export default function ListView({
                        />
                      </label>
                      <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
-                       <span className={`text-sm font-bold ${selectedBin.urgentRemoval ? "text-[#D4A373]" : "text-[#7A8275]"}`}>
+                       <span className={\`text-sm font-bold \${selectedBin.urgentRemoval ? "text-[#D4A373]" : "text-[#7A8275]"}\`}>
                          À déposer urgence
                        </span>
                        <input
@@ -497,7 +499,7 @@ export default function ListView({
                        />
                      </label>
                      <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
-                       <span className={`text-sm font-bold ${selectedBin.maintenanceRequired ? "text-[#9333EA]" : "text-[#7A8275]"}`}>
+                       <span className={\`text-sm font-bold \${selectedBin.maintenanceRequired ? "text-[#9333EA]" : "text-[#7A8275]"}\`}>
                          Maintenance
                        </span>
                        <input
@@ -517,3 +519,6 @@ export default function ListView({
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/ListView.tsx', code);

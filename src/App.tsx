@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
-import BinMap from "./components/BinMap";
+import UmapView from "./components/UmapView";
 import ListView from "./components/ListView";
 import SettingsView from "./components/SettingsView";
 import HeuresView from "./components/HeuresView";
@@ -87,7 +87,7 @@ function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-type ViewMode = "map" | "map_edition" | "map_deutz" | "list" | "settings" | "heures";
+type ViewMode = "umap" | "list" | "heures";
 
 export default function App() {
   const [bins, _setBins] = useState<TrashBin[]>([]);
@@ -142,73 +142,62 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const setBins = (
-    newBins: TrashBin[] | ((prev: TrashBin[]) => TrashBin[]),
-  ) => {
+  const setBins = (newBins: import("./types").TrashBin[] | ((prev: import("./types").TrashBin[]) => import("./types").TrashBin[])) => {
     _setBins((prev) => {
       const updated = typeof newBins === "function" ? newBins(prev) : newBins;
-      if (isDbLoaded)
-        setDoc(
-          doc(db, "maps", "clean_v1"),
-          { bins: updated },
-          { merge: true },
-        ).catch((err) =>
-          handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
-        );
+      if (isDbLoaded) {
+        import("firebase/firestore").then(({ updateDoc, doc }) => {
+          updateDoc(doc(db, "maps", "clean_v1"), { bins: updated }).catch(console.error);
+        });
+      }
       return updated;
     });
   };
 
-  const setEquipments = (
-    newEquipments: EquipmentConfig[] | ((prev: EquipmentConfig[]) => EquipmentConfig[]),
-  ) => {
+  const setEquipments = (newEquipments: import("./types").EquipmentConfig[] | ((prev: import("./types").EquipmentConfig[]) => import("./types").EquipmentConfig[])) => {
     _setEquipments((prev) => {
       const updated = typeof newEquipments === "function" ? newEquipments(prev) : newEquipments;
-      if (isDbLoaded)
-        setDoc(
-          doc(db, "maps", "clean_v1"),
-          { equipments: updated },
-          { merge: true },
-        ).catch((err) =>
-          handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
-        );
+      if (isDbLoaded) {
+        import("firebase/firestore").then(({ updateDoc, doc }) => {
+          updateDoc(doc(db, "maps", "clean_v1"), { equipments: updated }).catch(console.error);
+        });
+      }
       return updated;
     });
   };
 
-  const setSessions = (
-    newSessions: WorkSession[] | ((prev: WorkSession[]) => WorkSession[]),
-  ) => {
+  const setSessions = (newSessions: import("./types").WorkSession[] | ((prev: import("./types").WorkSession[]) => import("./types").WorkSession[])) => {
     _setSessions((prev) => {
       const updated = typeof newSessions === "function" ? newSessions(prev) : newSessions;
-      if (isDbLoaded)
-        setDoc(
-          doc(db, "maps", "clean_v1"),
-          { sessions: updated },
-          { merge: true },
-        ).catch((err) =>
-          handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"),
-        );
+      if (isDbLoaded) {
+        import("firebase/firestore").then(({ updateDoc, doc }) => {
+          updateDoc(doc(db, "maps", "clean_v1"), { sessions: updated }).catch(console.error);
+        });
+      }
       return updated;
     });
   };
 
-  const setBinTypes = (newTypes: BinTypeConfig[] | ((prev: BinTypeConfig[]) => BinTypeConfig[])) => {
+  const setBinTypes = (newBinTypes: import("./types").BinTypeConfig[] | ((prev: import("./types").BinTypeConfig[]) => import("./types").BinTypeConfig[])) => {
     _setBinTypes((prev) => {
-      const updated = typeof newTypes === "function" ? newTypes(prev) : newTypes;
-      if (isDbLoaded)
-        setDoc(doc(db, "maps", "clean_v1"), { binTypes: updated }, { merge: true })
-          .catch((err) => handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"));
+      const updated = typeof newBinTypes === "function" ? newBinTypes(prev) : newBinTypes;
+      if (isDbLoaded) {
+        import("firebase/firestore").then(({ updateDoc, doc }) => {
+          updateDoc(doc(db, "maps", "clean_v1"), { binTypes: updated }).catch(console.error);
+        });
+      }
       return updated;
     });
   };
 
-  const setBinCategories = (newCategories: BinCategoryConfig[] | ((prev: BinCategoryConfig[]) => BinCategoryConfig[])) => {
+  const setBinCategories = (newBinCategories: import("./types").BinCategoryConfig[] | ((prev: import("./types").BinCategoryConfig[]) => import("./types").BinCategoryConfig[])) => {
     _setBinCategories((prev) => {
-      const updated = typeof newCategories === "function" ? newCategories(prev) : newCategories;
-      if (isDbLoaded)
-        setDoc(doc(db, "maps", "clean_v1"), { binCategories: updated }, { merge: true })
-          .catch((err) => handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"));
+      const updated = typeof newBinCategories === "function" ? newBinCategories(prev) : newBinCategories;
+      if (isDbLoaded) {
+        import("firebase/firestore").then(({ updateDoc, doc }) => {
+          updateDoc(doc(db, "maps", "clean_v1"), { binCategories: updated }).catch(console.error);
+        });
+      }
       return updated;
     });
   };
@@ -240,7 +229,7 @@ export default function App() {
         .catch((err) => handleFirestoreError(err, OperationType.WRITE, "maps/clean_v1"));
   };
 
-  const [viewMode, setViewMode] = useState<ViewMode>("map");
+  const [viewMode, setViewMode] = useState<"umap" | "list" | "heures">("list");
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
   const [placingBinId, setPlacingBinId] = useState<string | null>(null);
 
@@ -358,9 +347,14 @@ export default function App() {
   };
 
   const handleDeleteAllBins = () => {
-    setBins([]);
+    _setBins([]);
     setSelectedBinId(null);
     setPlacingBinId(null);
+    if (isDbLoaded) {
+      import("firebase/firestore").then(({ updateDoc, doc }) => {
+        updateDoc(doc(db, "maps", "clean_v1"), { bins: [] }).catch(console.error);
+      });
+    }
   };
 
   const handlePlaceBin = (lat: number, lng: number) => {
@@ -374,12 +368,15 @@ export default function App() {
     }
   };
 
+  
   const handleDeleteBin = (id: string) => {
-    // Suppressed window.confirm to avoid iframe blocking
     setBins((prev) => prev.filter((bin) => bin.id !== id));
-    if (selectedBinId === id) setSelectedBinId(null);
-    if (placingBinId === id) setPlacingBinId(null);
   };
+
+  const handleDeleteLocation = (name: string) => {
+    setBins((prev) => prev.filter((bin) => bin.name !== name));
+  };
+
 
   const handleAddAndPlaceBin = (typeId: string) => {
     const newBinId = crypto.randomUUID();
@@ -462,40 +459,25 @@ export default function App() {
                 </p>
               )}
             </div>
-
+          </div>
+            
             <button
               type="submit"
-              className="w-full bg-[#6B8E63] text-white font-bold py-3 px-4 rounded-lg hover:bg-[#5a7a53] transition-colors shadow-sm"
+              className="w-full bg-[#6B8E63] text-white py-3 rounded-lg font-bold hover:bg-[#4B6345] transition-colors shadow-sm"
             >
-              Accéder au plan
+              Accéder
             </button>
-          </div>
-        </form>
+          </form>
       </div>
     );
   }
 
-  const handleAddSession = (session: WorkSession) => {
-    setSessions((prev) => [...prev, session]);
-  };
-
-  const handleDeleteSession = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  const handleUpdateSession = (id: string, updates: Partial<WorkSession>) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-    );
-  };
-
   return (
-    <div className="flex flex-col h-screen h-[100dvh] overflow-hidden bg-[#F4F1EA] text-[#3C413A] font-sans">
-      <header className="h-14 md:h-16 bg-[#F4F1EA] border-b border-[#D9D3C7] flex items-center justify-between px-4 md:px-6 z-20 relative print:hidden">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="md:hidden w-8 h-8 flex items-center justify-center text-[#3C413A] hover:bg-[#E5E0D5] rounded-lg transition-colors"
+    <div className="flex flex-col h-[100dvh] bg-[#F4F1EA] font-sans overflow-hidden">
+      <header className="bg-white p-3 md:p-4 shadow-sm border-b border-[#D9D3C7] flex justify-between items-center z-20 shrink-0">
+        <div className="flex items-center gap-2 md:gap-3">
+          <button
+            className="p-1 md:p-2 flex md:hidden items-center justify-center text-[#3C413A] hover:bg-[#E5E0D5] rounded-lg transition-colors"
           >
             <Menu size={20} />
           </button>
@@ -512,24 +494,14 @@ export default function App() {
 
         <div className="flex items-center gap-2 md:gap-4">
           {!isExternal && (
-            <>
-              <button
-                onClick={() => handleShare("pc")}
-                className="flex items-center gap-1 bg-white text-[#4B6345] border border-[#D9D3C7] px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm hover:bg-[#F4F1EA] transition-colors"
-                title="Lien Ordi"
-              >
-                {copiedPC ? <Check size={16} className="text-[#6B8E63]" /> : <Share2 size={16} />}
-                <span className="hidden md:inline">{copiedPC ? "Copié !" : "Ordi"}</span>
-              </button>
-              <button
-                onClick={() => handleShare("mobile")}
-                className="flex items-center gap-1 bg-white text-[#4B6345] border border-[#D9D3C7] px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm hover:bg-[#F4F1EA] transition-colors"
-                title="Lien Smartphone"
-              >
-                {copiedMobile ? <Check size={16} className="text-[#6B8E63]" /> : <Share2 size={16} />}
-                <span className="hidden md:inline">{copiedMobile ? "Copié !" : "Mobile"}</span>
-              </button>
-            </>
+            <button
+              onClick={() => handleShare("mobile")}
+              className="flex items-center gap-1 bg-white text-[#4B6345] border border-[#D9D3C7] px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm hover:bg-[#F4F1EA] transition-colors"
+              title="Partager le lien"
+            >
+              {copiedMobile ? <Check size={16} className="text-[#6B8E63]" /> : <Share2 size={16} />}
+              <span className="hidden md:inline">{copiedMobile ? "Copié !" : "Partager"}</span>
+            </button>
           )}
           {isExternal && (
             <button
@@ -540,156 +512,37 @@ export default function App() {
               <Settings size={18} />
             </button>
           )}
-        </div>
-      </header>
+        </div>      </header>
 
       <main className="flex-1 flex overflow-hidden relative">
-        {/* Mobile Tab Handle (visible when sidebar is closed) */}
-        {!isSidebarOpen && (
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="md:hidden absolute top-4 left-0 z-30 bg-white border-y border-r border-[#D9D3C7] rounded-r-xl shadow-md py-3 px-2 flex items-center justify-center text-[#4B6345]"
-            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-          >
-            <span className="font-bold text-xs uppercase tracking-widest">À Poser</span>
-          </button>
-        )}
+  {viewMode === "umap" && (
+    <div className="flex-1 relative z-0">
+      <UmapView />
+    </div>
+  )}
 
-        {/* Sidebar Overlay (Mobile) */}
-        {isSidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black/30 z-40 md:hidden" 
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
-        
-        {/* Sidebar (Drawer on mobile, hidden on desktop unless we want it visible) */}
-        <aside className={`fixed top-0 left-0 h-full w-72 bg-[#F4F1EA] border-r border-[#D9D3C7] z-50 transform transition-transform duration-300 flex flex-col shadow-xl md:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <div className="p-4 border-b border-[#D9D3C7] flex justify-between items-center">
-            <h2 className="font-bold text-[#3C413A]">À poser</h2>
-            <button onClick={() => setIsSidebarOpen(false)} className="text-[#7A8275] hover:bg-[#E5E0D5] p-2 rounded-lg transition-colors">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-auto p-4 space-y-3">
-            {binsToInstallCount.map(type => (
-              <div key={type.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-[#D9D3C7]">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-4 h-4 rounded-full border border-black/20"
-                    style={{ backgroundColor: binCategories.find(c => c.id === type.categoryId)?.color || type.color || "#ccc" }}
-                  />
-                  <span className="font-bold text-sm text-[#3C413A]">{type.label}</span>
-                </div>
-                <span className="font-mono font-bold text-[#D4A373] text-lg bg-[#F9F8F6] px-2 py-1 rounded">
-                  {type.count}
-                </span>
-              </div>
-            ))}
-          </div>
-        </aside>
+  {viewMode === "list" && (
+    <ListView
+      bins={bins}
+      binTypes={binTypes}
+      onUpdateBinTypes={setBinTypes}
+      onImportBins={handleImportBins}
+      onDeleteAllBins={handleDeleteAllBins}
+      onUpdateBin={updateBin}
+      onUpdateStatus={updateBinStatus}
+      onDeleteLocation={handleDeleteLocation}
+    />
+  )}
 
-        {(viewMode === "map" || viewMode === "map_edition" || viewMode === "map_deutz") && (
-          <div className="flex-1 relative z-0">
-            <BinMap
-              bins={bins}
-              binTypes={binTypes}
-              binCategories={binCategories}
-              mode={viewMode}
-              onUpdateStatus={updateBinStatus}
-              onUpdateBin={updateBin}
-              onUpdateAllBins={handleUpdateAllBins}
-              umapOffset={deviceType === "mobile" ? { x: umapOffsetPC.x + umapOffsetMobile.x, y: umapOffsetPC.y + umapOffsetMobile.y } : umapOffsetPC}
-              onUpdateUmapOffset={setUmapOffsetPC}
-              selectedBinId={selectedBinId}
-              onSelectBin={setSelectedBinId}
-              placingBinId={placingBinId}
-              onPlaceBin={handlePlaceBin}
-              onDeleteBin={handleDeleteBin}
-              onStartPlacing={handleStartPlacing}
-              onAddAndPlaceBin={handleAddAndPlaceBin}
-              umapRefreshKey={umapRefreshKey}
-              showUmapData={showUmapData}
-              onUpdateShowUmapData={!isExternal ? setShowUmapData : undefined}
-            />
-            {isExternal && showCalibration && (
-              <div className="absolute bottom-20 left-4 z-[400] bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-[#D9D3C7]">
-                <h3 className="text-xs font-bold text-[#3C413A] mb-2 text-center">Calibrage</h3>
-                <div className="flex flex-col items-center gap-1">
-                  <button
-                    onClick={() => setUmapOffsetPC({ ...umapOffsetPC, y: umapOffsetPC.y - 10 })}
-                    className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
-                  >
-                    <ArrowUp size={20} className="text-[#3C413A]" />
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setUmapOffsetPC({ ...umapOffsetPC, x: umapOffsetPC.x - 10 })}
-                      className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
-                    >
-                      <ArrowLeft size={20} className="text-[#3C413A]" />
-                    </button>
-                    <div className="w-12 flex flex-col items-center justify-center font-mono text-[10px] text-[#7A8275]">
-                      <div>X: {umapOffsetPC.x}</div>
-                      <div>Y: {umapOffsetPC.y}</div>
-                    </div>
-                    <button
-                      onClick={() => setUmapOffsetPC({ ...umapOffsetPC, x: umapOffsetPC.x + 10 })}
-                      className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
-                    >
-                      <ArrowRight size={20} className="text-[#3C413A]" />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => setUmapOffsetPC({ ...umapOffsetPC, y: umapOffsetPC.y + 10 })}
-                    className="p-2 bg-white hover:bg-[#EBE7DF] rounded-lg shadow-sm border border-[#D9D3C7] transition-colors"
-                  >
-                    <ArrowDown size={20} className="text-[#3C413A]" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {viewMode === "list" && (
-          <ListView
-            bins={bins}
-            binTypes={binTypes}
-            binCategories={binCategories}
-            onImportBins={handleImportBins}
-            onStartPlacing={handleStartPlacing}
-            onDeleteBin={handleDeleteBin}
-            onDeleteAllBins={handleDeleteAllBins}
-            onAddBin={handleAddBin}
-            onUpdateBinTypes={setBinTypes}
-            onUpdateBin={updateBin}
-          />
-        )}
-
-        {viewMode === "settings" && (
-          <SettingsView
-            binTypes={binTypes}
-            onUpdateBinTypes={setBinTypes}
-            binCategories={binCategories}
-            onUpdateBinCategories={setBinCategories}
-            umapOffsetPC={umapOffsetPC}
-            onUpdateUmapOffsetPC={setUmapOffsetPC}
-            umapOffsetMobile={umapOffsetMobile}
-            onUpdateUmapOffsetMobile={setUmapOffsetMobile}
-            onRefreshUmap={() => setUmapRefreshKey(k => k + 1)}
-          />
-        )}
-
-        {viewMode === "heures" && (
-          <HeuresView
-            equipments={equipments}
-            onUpdateEquipments={setEquipments}
-            sessions={sessions}
-            onUpdateSessions={setSessions}
-          />
-        )}
-      </main>
+  {viewMode === "heures" && (
+    <HeuresView 
+      equipments={equipments}
+      onUpdateEquipments={setEquipments}
+      sessions={sessions} 
+      onUpdateSessions={setSessions}
+    />
+  )}
+</main>
 
       
       <div className={`fixed bottom-0 left-0 w-full z-50 transition-transform duration-300 ${isNavOpen ? "translate-y-0" : "translate-y-full"} md:translate-y-0 md:relative`}>
@@ -700,47 +553,27 @@ export default function App() {
           {isNavOpen ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
         </button>
         <nav className="bg-white border-t border-[#D9D3C7] flex items-center justify-around md:justify-center p-2 shrink-0 gap-1 md:gap-2 overflow-x-auto print:hidden shadow-lg md:shadow-none pb-safe">
-          <button
-            onClick={() => { setViewMode("map"); setIsNavOpen(false); }}
-            className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-          >
-            <Map size={18} /> <span className="whitespace-nowrap">Carte</span>
-          </button>
-          <button
-            onClick={() => { setViewMode("map_deutz"); setIsNavOpen(false); }}
-            className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_deutz" ? "bg-[#D4A373] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-          >
-            <Map size={18} /> <span className="whitespace-nowrap">Deutz</span>
-          </button>
-          {!isExternal && (
-            <>
-              <button
-                onClick={() => { setViewMode("map_edition"); setIsNavOpen(false); }}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "map_edition" ? "bg-[#3B82F6] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Map size={18} /> <span className="whitespace-nowrap">Édition</span>
-              </button>
-              <button
-                onClick={() => { setViewMode("list"); setIsNavOpen(false); }}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <List size={18} /> <span className="whitespace-nowrap">Liste</span>
-              </button>
-              <button
-                onClick={() => { setViewMode("settings"); setIsNavOpen(false); }}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "settings" ? "bg-[#7A8275] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Settings size={18} /> <span className="whitespace-nowrap hidden md:inline">Param.</span>
-              </button>
-              <button
-                onClick={() => { setViewMode("heures"); setIsNavOpen(false); }}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "heures" ? "bg-[#D4A373] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
-              >
-                <Clock size={18} /> <span className="whitespace-nowrap hidden md:inline">Heures</span>
-              </button>
-            </>
-          )}
-        </nav>
+  <button
+    onClick={() => { setViewMode("umap"); setIsNavOpen(false); }}
+    className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "umap" ? "bg-[#6B8E63] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+  >
+    <Map size={18} /> <span className="whitespace-nowrap">UMAP</span>
+  </button>
+  <button
+    onClick={() => { setViewMode("list"); setIsNavOpen(false); }}
+    className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "list" ? "bg-[#4B6345] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+  >
+    <List size={18} /> <span className="whitespace-nowrap">Listing</span>
+  </button>
+  {!isExternal && (
+    <button
+      onClick={() => { setViewMode("heures"); setIsNavOpen(false); }}
+      className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-colors ${viewMode === "heures" ? "bg-[#D4A373] text-white" : "text-[#7A8275] hover:bg-[#F4F1EA]"}`}
+    >
+      <Clock size={18} /> <span className="whitespace-nowrap hidden md:inline">Heures</span>
+    </button>
+  )}
+</nav>
       </div>
     </div>
   );
