@@ -104,9 +104,9 @@ export default function ListView({
       } else {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(data);
-        const worksheet = workbook.worksheets[0] || workbook.getWorksheet(1);
+        const worksheet = workbook.worksheets.find(s => !!s) || (workbook.worksheets.length > 0 ? workbook.worksheets[0] : null) || workbook.getWorksheet(1);
         if (!worksheet) {
-          throw new Error("No worksheet found in the Excel file");
+          throw new Error("No worksheet found in the Excel file. Sheets count: " + workbook.worksheets.length);
         }
         const headerRow = worksheet.getRow(1);
         
@@ -238,7 +238,7 @@ export default function ListView({
                  count: count,
                  lat: null,
                  lng: null,
-                 color: cellHexColor
+                 color: cellHexColor || null
               });
            }
         });

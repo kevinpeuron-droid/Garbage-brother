@@ -147,7 +147,7 @@ export default function App() {
       const updated = typeof newBins === "function" ? newBins(prev) : newBins;
       if (isDbLoaded) {
         import("firebase/firestore").then(({ updateDoc, doc }) => {
-          updateDoc(doc(db, "maps", "clean_v1"), { bins: updated }).catch(console.error);
+          updateDoc(doc(db, "maps", "clean_v1"), { bins: JSON.parse(JSON.stringify(updated)) }).catch(console.error);
         });
       }
       return updated;
@@ -159,7 +159,7 @@ export default function App() {
       const updated = typeof newEquipments === "function" ? newEquipments(prev) : newEquipments;
       if (isDbLoaded) {
         import("firebase/firestore").then(({ updateDoc, doc }) => {
-          updateDoc(doc(db, "maps", "clean_v1"), { equipments: updated }).catch(console.error);
+          updateDoc(doc(db, "maps", "clean_v1"), { equipments: JSON.parse(JSON.stringify(updated)) }).catch(console.error);
         });
       }
       return updated;
@@ -171,7 +171,7 @@ export default function App() {
       const updated = typeof newSessions === "function" ? newSessions(prev) : newSessions;
       if (isDbLoaded) {
         import("firebase/firestore").then(({ updateDoc, doc }) => {
-          updateDoc(doc(db, "maps", "clean_v1"), { sessions: updated }).catch(console.error);
+          updateDoc(doc(db, "maps", "clean_v1"), { sessions: JSON.parse(JSON.stringify(updated)) }).catch(console.error);
         });
       }
       return updated;
@@ -183,7 +183,7 @@ export default function App() {
       const updated = typeof newBinTypes === "function" ? newBinTypes(prev) : newBinTypes;
       if (isDbLoaded) {
         import("firebase/firestore").then(({ updateDoc, doc }) => {
-          updateDoc(doc(db, "maps", "clean_v1"), { binTypes: updated }).catch(console.error);
+          updateDoc(doc(db, "maps", "clean_v1"), { binTypes: JSON.parse(JSON.stringify(updated)) }).catch(console.error);
         });
       }
       return updated;
@@ -195,7 +195,7 @@ export default function App() {
       const updated = typeof newBinCategories === "function" ? newBinCategories(prev) : newBinCategories;
       if (isDbLoaded) {
         import("firebase/firestore").then(({ updateDoc, doc }) => {
-          updateDoc(doc(db, "maps", "clean_v1"), { binCategories: updated }).catch(console.error);
+          updateDoc(doc(db, "maps", "clean_v1"), { binCategories: JSON.parse(JSON.stringify(updated)) }).catch(console.error);
         });
       }
       return updated;
