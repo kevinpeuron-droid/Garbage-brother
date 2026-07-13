@@ -79,7 +79,13 @@ export default function ListView({
       const extractedRows: { values: any[]; colors: Record<number, string> }[] = [];
 
       if (file.name.toLowerCase().endsWith('.csv')) {
-        const workbook = XLSX.read(data, { type: "array" });
+        let text;
+        try {
+          text = new TextDecoder('utf-8', { fatal: true }).decode(data);
+        } catch (e) {
+          text = new TextDecoder('windows-1252').decode(data);
+        }
+        const workbook = XLSX.read(text, { type: "string" });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
@@ -281,7 +287,7 @@ export default function ListView({
 
   if (importState) {
     return (
-      <div className="w-full max-w-4xl mx-auto py-6 pb-32">
+      <div className="flex-1 h-full overflow-y-auto w-full"><div className="w-full max-w-4xl mx-auto py-6 pb-32 px-4">
         <div className="bg-white rounded-2xl shadow-sm border border-[#E5E0D5] overflow-hidden p-6">
            <h2 className="text-xl font-bold text-[#3C413A] mb-6">Mappage des colonnes du fichier</h2>
            <p className="text-[#7A8275] mb-6">Sélectionnez les colonnes correspondantes pour importer vos poubelles.</p>
@@ -347,11 +353,12 @@ export default function ListView({
            </div>
         </div>
       </div>
+      </div>
     );
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto py-6 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex-1 h-full overflow-y-auto"><div className="w-full max-w-6xl mx-auto py-6 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="bg-white rounded-2xl shadow-sm border border-[#E5E0D5] overflow-hidden">
         <div className="p-4 sm:p-6">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -542,6 +549,7 @@ export default function ListView({
              </div>
            )}
         </div>
+      </div>
       </div>
     </div>
   );
