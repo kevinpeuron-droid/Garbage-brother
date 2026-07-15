@@ -35,6 +35,7 @@ export default function ListView({
 }: ListViewProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showOnlyToInstall, setShowOnlyToInstall] = useState(false);
   const [selectedBin, setSelectedBin] = useState<TrashBin | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +67,11 @@ export default function ListView({
       name,
       types
     }))
-    .filter(loc => loc.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(loc => loc.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(loc => {
+      if (!showOnlyToInstall) return true;
+      return Object.values(loc.types).some(bin => bin.status === "to_install" || bin.status === "missing");
+    });
 
   const activeBinTypes = binTypes.filter(t => bins.some(b => b.type === t.id));
 
@@ -412,17 +417,28 @@ export default function ListView({
                <p className="text-sm text-[#7A8275] mt-1">{bins.length} éléments au total</p>
              </div>
              
-             <div className="relative w-full sm:w-64">
-               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                 <Search size={16} className="text-[#A08E78]" />
+             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+               <div className="relative w-full sm:w-64">
+                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                   <Search size={16} className="text-[#A08E78]" />
+                 </div>
+                 <input
+                   type="text"
+                   placeholder="Rechercher un emplacement..."
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="w-full pl-9 pr-4 py-2 bg-[#F9F8F6] border border-[#E5E0D5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B8E63] transition-all"
+                 />
                </div>
-               <input
-                 type="text"
-                 placeholder="Rechercher un emplacement..."
-                 value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
-                 className="w-full pl-9 pr-4 py-2 bg-[#F9F8F6] border border-[#E5E0D5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B8E63] transition-all"
-               />
+               <label className="flex items-center gap-2 cursor-pointer bg-[#F9F8F6] px-3 py-2 rounded-lg border border-[#E5E0D5]">
+                 <input
+                   type="checkbox"
+                   checked={showOnlyToInstall}
+                   onChange={(e) => setShowOnlyToInstall(e.target.checked)}
+                   className="w-4 h-4 rounded border-[#D9D3C7] text-[#6B8E63] focus:ring-[#6B8E63]"
+                 />
+                 <span className="text-sm font-medium text-[#3C413A]">N'afficher que les non posées</span>
+               </label>
              </div>
 
              <div className="flex gap-2">
