@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
 import { TrashBin, BinTypeConfig } from "../types";
-import { Upload, Trash2, Check, X, FileUp, Settings2, AlertTriangle, MoreVertical, ArrowRight } from "lucide-react";
+import { Upload, Trash2, Check, X, FileUp, Settings2, AlertTriangle, MoreVertical, ArrowRight, Search } from "lucide-react";
 
 interface ListViewProps {
   bins: TrashBin[];
@@ -34,6 +34,7 @@ export default function ListView({
   onDeleteLocation,
 }: ListViewProps) {
   const [isImporting, setIsImporting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedBin, setSelectedBin] = useState<TrashBin | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,12 +61,14 @@ export default function ListView({
     }
   });
 
-  const locations = Array.from(locationsMap.entries()).map(([name, types]) => ({
-    name,
-    types
-  }));
+  const locations = Array.from(locationsMap.entries())
+    .map(([name, types]) => ({
+      name,
+      types
+    }))
+    .filter(loc => loc.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  const activeBinTypes = binTypes.filter(t => ['4_roues', '2_roues_300l', '2_roues_150l'].includes(t.id) && bins.some(b => b.type === t.id));
+  const activeBinTypes = binTypes.filter(t => bins.some(b => b.type === t.id));
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -359,6 +362,48 @@ export default function ListView({
 
   return (
     <div className="flex-1 h-full overflow-y-auto"><div className="w-full max-w-6xl mx-auto py-6 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5E0D5]">
+          <h3 className="text-[#7A8275] font-medium mb-3">À poser encore</h3>
+          <div className="flex flex-wrap gap-4">
+            {activeBinTypes.map(t => {
+              const count = bins.filter(b => b.type === t.id && (b.status === "to_install" || b.status === "missing")).length;
+              if (count === 0) return null;
+              return (
+                <div key={t.id} className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: t.color || '#6B8E63' }} />
+                  <span className="text-sm font-bold text-[#3C413A]">{t.label}:</span>
+                  <span className="text-lg font-bold text-[#6B8E63]">{count}</span>
+                </div>
+              );
+            })}
+            {bins.filter(b => (b.status === "to_install" || b.status === "missing")).length === 0 && (
+              <span className="text-sm text-[#A08E78]">Tout est posé !</span>
+            )}
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5E0D5]">
+          <h3 className="text-[#7A8275] font-medium mb-3">À déposer</h3>
+          <div className="flex flex-wrap gap-4">
+            {activeBinTypes.map(t => {
+              const count = bins.filter(b => b.type === t.id && b.status === "to_remove").length;
+              if (count === 0) return null;
+              return (
+                <div key={t.id} className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: t.color || '#D4A373' }} />
+                  <span className="text-sm font-bold text-[#3C413A]">{t.label}:</span>
+                  <span className="text-lg font-bold text-[#D4A373]">{count}</span>
+                </div>
+              );
+            })}
+            {bins.filter(b => b.status === "to_remove").length === 0 && (
+              <span className="text-sm text-[#A08E78]">Rien à déposer pour l'instant.</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-[#E5E0D5] overflow-hidden">
         <div className="p-4 sm:p-6">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -366,6 +411,20 @@ export default function ListView({
                <h2 className="text-xl font-bold text-[#3C413A]">Vue Liste</h2>
                <p className="text-sm text-[#7A8275] mt-1">{bins.length} éléments au total</p>
              </div>
+             
+             <div className="relative w-full sm:w-64">
+               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                 <Search size={16} className="text-[#A08E78]" />
+               </div>
+               <input
+                 type="text"
+                 placeholder="Rechercher un emplacement..."
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 className="w-full pl-9 pr-4 py-2 bg-[#F9F8F6] border border-[#E5E0D5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B8E63] transition-all"
+               />
+             </div>
+
              <div className="flex gap-2">
                <input
                  type="file"
