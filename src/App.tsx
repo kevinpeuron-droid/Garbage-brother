@@ -102,6 +102,7 @@ export default function App() {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [umapRefreshKey, setUmapRefreshKey] = useState(0);
   const [showUmapData, _setShowUmapData] = useState(false);
+  const [appMode, setAppMode] = useState<"pose" | "depose">("pose");
 
   useEffect(() => {
     const docRef = doc(db, "maps", "clean_v1");
@@ -491,6 +492,21 @@ export default function App() {
             </span>
           </span>
         </div>
+        
+        <div className="flex bg-[#F4F1EA] rounded-lg p-1 border border-[#E5E0D5] mx-auto absolute left-1/2 -translate-x-1/2">
+          <button 
+            onClick={() => setAppMode("pose")}
+            className={`px-3 py-1 text-sm font-bold rounded-md transition-all ${appMode === "pose" ? "bg-white shadow-sm text-[#3C413A]" : "text-[#7A8275] hover:text-[#3C413A]"}`}
+          >
+            Pose
+          </button>
+          <button 
+            onClick={() => setAppMode("depose")}
+            className={`px-3 py-1 text-sm font-bold rounded-md transition-all ${appMode === "depose" ? "bg-white shadow-sm text-[#3C413A]" : "text-[#7A8275] hover:text-[#3C413A]"}`}
+          >
+            Dépose
+          </button>
+        </div>
 
         <div className="flex items-center gap-2 md:gap-4">
           {!isExternal && (
@@ -523,6 +539,7 @@ export default function App() {
 
   {viewMode === "list" && (
     <ListView
+              appMode={appMode}
       bins={bins}
       binTypes={binTypes}
       onUpdateBinTypes={setBinTypes}

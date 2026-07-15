@@ -6,6 +6,7 @@ import { TrashBin, BinTypeConfig } from "../types";
 import { Upload, Trash2, Check, X, FileUp, Settings2, AlertTriangle, MoreVertical, ArrowRight, Search } from "lucide-react";
 
 interface ListViewProps {
+  appMode: "pose" | "depose";
   bins: TrashBin[];
   binTypes: BinTypeConfig[];
   onUpdateBinTypes: (types: BinTypeConfig[]) => void;
@@ -24,6 +25,7 @@ type ColumnMapping = {
 };
 
 export default function ListView({
+  appMode,
   bins,
   binTypes,
   onUpdateBinTypes,
@@ -36,7 +38,9 @@ export default function ListView({
   const [isImporting, setIsImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyToInstall, setShowOnlyToInstall] = useState(false);
-  const [selectedBin, setSelectedBin] = useState<TrashBin | null>(null);
+  const [showOnlyOverflowing, setShowOnlyOverflowing] = useState(false);
+  const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
+  const selectedBin = bins.find(b => b.id === selectedBinId) || null;
   const popupRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,8 +73,12 @@ export default function ListView({
     }))
     .filter(loc => loc.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .filter(loc => {
+      if (showOnlyOverflowing) {
+        return Object.values(loc.types).some(bin => bin.status === "overflowing");
+      }
       if (!showOnlyToInstall) return true;
-      return Object.values(loc.types).some(bin => bin.status === "to_install" || bin.status === "missing");
+      if (appMode === "pose") return Object.values(loc.types).some(bin => bin.status === "to_install" || bin.status === "missing");
+      return Object.values(loc.types).some(bin => bin.status === "installed" || bin.status === "to_remove" || bin.status === "overflowing");
     });
 
   const activeBinTypes = binTypes.filter(t => bins.some(b => b.type === t.id));
@@ -274,7 +282,7 @@ export default function ListView({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
-        setSelectedBin(null);
+        setSelectedBinId(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -366,6 +374,7 @@ export default function ListView({
   }
 
   return (
+    <>
     <div className="flex-1 h-full overflow-y-auto"><div className="w-full max-w-6xl mx-auto py-6 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -434,10 +443,19 @@ export default function ListView({
                  <input
                    type="checkbox"
                    checked={showOnlyToInstall}
-                   onChange={(e) => setShowOnlyToInstall(e.target.checked)}
+                   onChange={(e) => { setShowOnlyToInstall(e.target.checked); if (e.target.checked) setShowOnlyOverflowing(false); }}
                    className="w-4 h-4 rounded border-[#D9D3C7] text-[#6B8E63] focus:ring-[#6B8E63]"
                  />
-                 <span className="text-sm font-medium text-[#3C413A]">N'afficher que les non posées</span>
+                 <span className="text-sm font-medium text-[#3C413A]">{appMode === "pose" ? "N'afficher que les non posées" : "N'afficher que les non déposées"}</span>
+               </label>
+               <label className="flex items-center gap-2 cursor-pointer bg-[#FEE2E2] px-3 py-2 rounded-lg border border-[#FECACA]">
+                 <input
+                   type="checkbox"
+                   checked={showOnlyOverflowing}
+                   onChange={(e) => { setShowOnlyOverflowing(e.target.checked); if (e.target.checked) setShowOnlyToInstall(false); }}
+                   className="w-4 h-4 rounded border-[#FCA5A5] text-[#DC2626] focus:ring-[#DC2626]"
+                 />
+                 <span className="text-sm font-medium text-[#DC2626]">Archi pleines</span>
                </label>
              </div>
 
@@ -488,32 +506,51 @@ export default function ListView({
                        
                        return (
                          <td key={t.id} className="px-4 py-3">
-                           <div className="flex items-center justify-center gap-3">
-                             <input 
-                               type="checkbox" 
-                               checked={bin.status === "installed"}
-                               onChange={(e) => onUpdateStatus(bin.id, e.target.checked ? "installed" : "to_install")}
-                               className="w-5 h-5 rounded border-[#D9D3C7] text-[#6B8E63] focus:ring-[#6B8E63] cursor-pointer"
-                               title="Marquer comme posée"
-                             />
-                             <div 
-                               onClick={() => setSelectedBin(bin)}
-                               className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg text-sm font-bold cursor-pointer transition-all shadow-sm hover:brightness-95 ${bin.status === "installed" ? "opacity-50" : ""} ${bin.urgentPlacement || bin.urgentRemoval || bin.maintenanceRequired ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}
-                               style={{ 
-                                  backgroundColor: bin.color || t.color || (bin.status === "installed" ? "#6B8E63" : "#F4F1EA"),
-                                  color: (bin.color || t.color) ? '#FFFFFF' : (bin.status === "installed" ? "#FFFFFF" : "#3C413A"),
-                                  textShadow: (bin.color || t.color) ? '0px 1px 2px rgba(0,0,0,0.5)' : 'none'
-                               }}
-                             >
-                               {bin.count}
-                               {(bin.urgentPlacement || bin.urgentRemoval || bin.maintenanceRequired) && (
-                                 <div className="flex gap-0.5 mt-0.5">
-                                   {bin.urgentPlacement && <span title="À poser urgence" className="w-1.5 h-1.5 rounded-full bg-[#DC2626]"></span>}
-                                   {bin.urgentRemoval && <span title="À déposer urgence" className="w-1.5 h-1.5 rounded-full bg-[#D4A373]"></span>}
-                                   {bin.maintenanceRequired && <span title="Maintenance" className="w-1.5 h-1.5 rounded-full bg-[#9333EA]"></span>}
-                                 </div>
-                               )}
+                           <div className="flex flex-col gap-2 items-center justify-center">
+                             <div className="flex items-center justify-center gap-3">
+                               <input
+                                  type="checkbox"
+                                  checked={appMode === "pose" ? (bin.status === "installed" || bin.status === "overflowing") : bin.status === "removed"}
+                                  onChange={(e) => {
+                                    if (appMode === "pose") {
+                                      onUpdateStatus(bin.id, e.target.checked ? "installed" : "to_install");
+                                    } else {
+                                      onUpdateStatus(bin.id, e.target.checked ? "removed" : "installed");
+                                    }
+                                  }}
+                                  className={`w-5 h-5 rounded border-[#D9D3C7] cursor-pointer ${appMode === "pose" ? "text-[#6B8E63] focus:ring-[#6B8E63]" : "text-[#D4A373] focus:ring-[#D4A373]"}`}
+                                  title={appMode === "pose" ? "Marquer comme posée" : "Marquer comme déposée"}
+                                />
+                               <div 
+                                 onClick={() => setSelectedBinId(bin.id)}
+                                 className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg text-sm font-bold cursor-pointer transition-all shadow-sm hover:brightness-95 ${bin.status === "installed" ? "opacity-50" : ""} ${bin.urgentPlacement || bin.urgentRemoval || bin.maintenanceRequired || bin.status === "overflowing" ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}
+                                 style={{ 
+                                     backgroundColor: bin.status === "overflowing" ? "#DC2626" : (bin.color || t.color || (bin.status === "installed" ? "#6B8E63" : "#F4F1EA")),
+                                     color: (bin.status === "overflowing" || bin.color || t.color || bin.status === "installed") ? '#FFFFFF' : "#3C413A",
+                                     textShadow: (bin.status === "overflowing" || bin.color || t.color) ? '0px 1px 2px rgba(0,0,0,0.5)' : 'none'
+                                 }}
+                               >
+                                 {bin.count}
+                                 {(bin.urgentPlacement || bin.urgentRemoval || bin.maintenanceRequired) && (
+                                   <div className="flex gap-0.5 mt-0.5">
+                                     {bin.urgentPlacement && <span title="À poser urgence" className="w-1.5 h-1.5 rounded-full bg-[#DC2626]"></span>}
+                                     {bin.urgentRemoval && <span title="À déposer urgence" className="w-1.5 h-1.5 rounded-full bg-[#D4A373]"></span>}
+                                     {bin.maintenanceRequired && <span title="Maintenance" className="w-1.5 h-1.5 rounded-full bg-[#9333EA]"></span>}
+                                   </div>
+                                 )}
+                               </div>
                              </div>
+                             {(bin.status === "installed" || bin.status === "overflowing") && appMode === "pose" && (
+                               <label className="flex items-center justify-center gap-1.5 text-[10px] font-bold cursor-pointer bg-[#FEE2E2] px-2 py-0.5 rounded-full border border-[#FECACA]">
+                                 <input 
+                                   type="checkbox"
+                                   checked={bin.status === "overflowing"}
+                                   onChange={(e) => onUpdateStatus(bin.id, e.target.checked ? "overflowing" : "installed")}
+                                   className="w-3 h-3 rounded border-[#FCA5A5] text-[#DC2626] focus:ring-[#DC2626]"
+                                 />
+                                 <span className={bin.status === "overflowing" ? "text-[#DC2626]" : "text-[#EF4444]"}>Pleine</span>
+                               </label>
+                             )}
                            </div>
                          </td>
                        );
@@ -531,101 +568,105 @@ export default function ListView({
              </table>
            </div>
            
-           {selectedBin && (
-             <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
-               <div ref={popupRef} className="bg-white rounded-xl shadow-2xl p-5 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
-                 <div className="flex justify-between items-start mb-4 border-b border-[#E5E0D5] pb-3">
-                   <div>
-                     <h3 className="font-bold text-lg text-[#3C413A]">{selectedBin.name}</h3>
-                     <p className="text-sm font-medium text-[#7A8275]">{binTypes.find(t => t.id === selectedBin.type)?.label} (x{selectedBin.count})</p>
-                   </div>
-                   <button onClick={() => setSelectedBin(null)} className="p-1 text-[#7A8275] hover:bg-[#F4F1EA] rounded-lg transition-colors">
-                     <X size={20} />
-                   </button>
-                 </div>
-                 
-                 <div className="space-y-4">
-                   <div className="grid grid-cols-2 gap-2">
-                     <button
-                       onClick={() => onUpdateStatus(selectedBin.id, "to_install")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
-                     >
-                       À poser
-                     </button>
-                     <button
-                       onClick={() => onUpdateStatus(selectedBin.id, "installed")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
-                     >
-                       Posée
-                     </button>
-                     <button
-                       onClick={() => onUpdateStatus(selectedBin.id, "to_remove")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
-                     >
-                       À retirer
-                     </button>
-                     <button
-                       onClick={() => onUpdateStatus(selectedBin.id, "removed")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
-                     >
-                       Retirée
-                     </button>
-                     <button
-                       onClick={() => onUpdateStatus(selectedBin.id, "missing")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
-                     >
-                       Manquante
-                     </button>
-                     <button
-                       onClick={() => onUpdateStatus(selectedBin.id, "overflowing")}
-                       className={`p-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-1 ${selectedBin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
-                     >
-                       <AlertTriangle size={16} /> Archi pleine
-                     </button>
-                   </div>
-                   
-                   <div className="space-y-2 pt-4 border-t border-[#E5E0D5]">
-                     <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
-                       <span className={`text-sm font-bold ${selectedBin.urgentPlacement ? "text-[#DC2626]" : "text-[#7A8275]"}`}>
-                         À poser urgence
-                       </span>
-                       <input
-                         type="checkbox"
-                         checked={selectedBin.urgentPlacement || false}
-                         onChange={(e) => onUpdateBin(selectedBin.id, { urgentPlacement: e.target.checked })}
-                         className="w-5 h-5 rounded border-[#D9D3C7] text-[#DC2626] focus:ring-[#DC2626]"
-                       />
-                     </label>
-                     <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
-                       <span className={`text-sm font-bold ${selectedBin.urgentRemoval ? "text-[#D4A373]" : "text-[#7A8275]"}`}>
-                         À déposer urgence
-                       </span>
-                       <input
-                         type="checkbox"
-                         checked={selectedBin.urgentRemoval || false}
-                         onChange={(e) => onUpdateBin(selectedBin.id, { urgentRemoval: e.target.checked })}
-                         className="w-5 h-5 rounded border-[#D9D3C7] text-[#D4A373] focus:ring-[#D4A373]"
-                       />
-                     </label>
-                     <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
-                       <span className={`text-sm font-bold ${selectedBin.maintenanceRequired ? "text-[#9333EA]" : "text-[#7A8275]"}`}>
-                         Maintenance
-                       </span>
-                       <input
-                         type="checkbox"
-                         checked={selectedBin.maintenanceRequired || false}
-                         onChange={(e) => onUpdateBin(selectedBin.id, { maintenanceRequired: e.target.checked })}
-                         className="w-5 h-5 rounded border-[#D9D3C7] text-[#9333EA] focus:ring-[#9333EA]"
-                       />
-                     </label>
-                   </div>
-                 </div>
-               </div>
-             </div>
-           )}
+           
         </div>
       </div>
       </div>
     </div>
+    
+      {selectedBin && (
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
+          <div ref={popupRef} className="bg-white rounded-xl shadow-2xl p-5 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-start mb-4 border-b border-[#E5E0D5] pb-3">
+              <div>
+                <h3 className="font-bold text-lg text-[#3C413A]">{selectedBin.name}</h3>
+                <p className="text-sm font-medium text-[#7A8275]">{binTypes.find(t => t.id === selectedBin.type)?.label} (x{selectedBin.count})</p>
+              </div>
+              <button onClick={() => setSelectedBinId(null)} className="p-1 text-[#7A8275] hover:bg-[#F4F1EA] rounded-lg transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onUpdateStatus(selectedBin.id, "to_install")}
+                  className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "to_install" ? "bg-[#A08E78] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                >
+                  À poser
+                </button>
+                <button
+                  onClick={() => onUpdateStatus(selectedBin.id, "installed")}
+                  className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "installed" ? "bg-[#6B8E63] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                >
+                  Posée
+                </button>
+                <button
+                  onClick={() => onUpdateStatus(selectedBin.id, "to_remove")}
+                  className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "to_remove" ? "bg-[#D4A373] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                >
+                  À retirer
+                </button>
+                <button
+                  onClick={() => onUpdateStatus(selectedBin.id, "removed")}
+                  className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "removed" ? "bg-[#D9D3C7] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                >
+                  Retirée
+                </button>
+                <button
+                  onClick={() => onUpdateStatus(selectedBin.id, "missing")}
+                  className={`p-2.5 text-sm font-bold rounded-lg transition-colors ${selectedBin.status === "missing" ? "bg-[#9333EA] text-white" : "bg-[#F4F1EA] text-[#7A8275] hover:bg-[#EBE7DF]"}`}
+                >
+                  Manquante
+                </button>
+                <button
+                  onClick={() => onUpdateStatus(selectedBin.id, "overflowing")}
+                  className={`p-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-1 ${selectedBin.status === "overflowing" ? "bg-[#DC2626] text-white" : "bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA]"}`}
+                >
+                  <AlertTriangle size={16} /> Archi pleine
+                </button>
+              </div>
+              
+              <div className="space-y-2 pt-4 border-t border-[#E5E0D5]">
+                <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
+                  <span className={`text-sm font-bold ${selectedBin.urgentPlacement ? "text-[#DC2626]" : "text-[#7A8275]"}`}>
+                    À poser urgence
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={selectedBin.urgentPlacement || false}
+                    onChange={(e) => onUpdateBin(selectedBin.id, { urgentPlacement: e.target.checked })}
+                    className="w-5 h-5 rounded border-[#D9D3C7] text-[#DC2626] focus:ring-[#DC2626]"
+                  />
+                </label>
+                <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
+                  <span className={`text-sm font-bold ${selectedBin.urgentRemoval ? "text-[#D4A373]" : "text-[#7A8275]"}`}>
+                    À déposer urgence
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={selectedBin.urgentRemoval || false}
+                    onChange={(e) => onUpdateBin(selectedBin.id, { urgentRemoval: e.target.checked })}
+                    className="w-5 h-5 rounded border-[#D9D3C7] text-[#D4A373] focus:ring-[#D4A373]"
+                  />
+                </label>
+                <label className="flex items-center justify-between p-3 rounded-lg bg-[#F9F8F6] border border-[#EBE7DF] hover:bg-[#E5E0D5] transition-colors cursor-pointer">
+                  <span className={`text-sm font-bold ${selectedBin.maintenanceRequired ? "text-[#9333EA]" : "text-[#7A8275]"}`}>
+                    Maintenance
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={selectedBin.maintenanceRequired || false}
+                    onChange={(e) => onUpdateBin(selectedBin.id, { maintenanceRequired: e.target.checked })}
+                    className="w-5 h-5 rounded border-[#D9D3C7] text-[#9333EA] focus:ring-[#9333EA]"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </>
   );
 }
