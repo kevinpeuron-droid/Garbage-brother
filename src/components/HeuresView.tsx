@@ -264,6 +264,17 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
 
   const getEqLabel = (id: string) => equipments.find(e => e.id === id)?.label || "Inconnu";
 
+  const calculateDurationHours = (start: string, end: string, breakMinutes = 0) => {
+    if (!start || !end) return 0;
+    const [startH, startM] = start.split(":").map(Number);
+    const [endH, endM] = end.split(":").map(Number);
+    let diff = endH * 60 + endM - (startH * 60 + startM) - breakMinutes;
+    if (diff < 0) diff += 24 * 60;
+    return Math.max(0, diff / 60);
+  };
+
+  const sortedSessions = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+
   return (
     <div className="space-y-8">
       <form onSubmit={handleAdd} className="bg-[#F4F1EA] p-4 md:p-6 rounded-xl border border-[#D9D3C7] space-y-6">
@@ -372,10 +383,20 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
         {sessions.length === 0 && <p className="text-sm text-[#7A8275]">Aucun pointage enregistré.</p>}
         
         <div className="space-y-3">
-          {sessions.map(session => (
+          {sortedSessions.map(session => {
+            const mainHours = calculateDurationHours(session.startTime, session.endTime, session.breakMinutes || 0);
+            const secHours = session.secondaryMission ? calculateDurationHours(session.secondaryMission.startTime, session.secondaryMission.endTime, 0) : 0;
+            const totalHours = mainHours + secHours;
+            
+            return (
             <div key={session.id} className="bg-white border border-[#D9D3C7] rounded-xl p-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
               <div className="flex-1 space-y-1">
-                <div className="font-bold text-[#3C413A]">{session.date}</div>
+                <div className="font-bold text-[#3C413A] flex items-center gap-2">
+                  {new Date(session.date).toLocaleDateString("fr-FR")}
+                  <span className="bg-[#D4A373] text-white px-2 py-0.5 rounded text-xs">
+                    {totalHours.toFixed(1)}h
+                  </span>
+                </div>
                 <div className="text-sm text-[#7A8275]">
                   <span className="font-medium text-[#3C413A]">Matin: {session.startTime} - {session.endTime}</span>
                 </div>
@@ -406,7 +427,7 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
                 </button>
               </div>
             </div>
-          ))}
+          );})} 
         </div>
       </div>
     </div>
