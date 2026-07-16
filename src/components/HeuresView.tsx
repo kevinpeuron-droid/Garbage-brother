@@ -392,7 +392,7 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
             <div key={session.id} className="bg-white border border-[#D9D3C7] rounded-xl p-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
               <div className="flex-1 space-y-1">
                 <div className="font-bold text-[#3C413A] flex items-center gap-2">
-                  {new Date(session.date).toLocaleDateString("fr-FR")}
+                  {new Date(session.date).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }).replace(".", "")}
                   <span className="bg-[#D4A373] text-white px-2 py-0.5 rounded text-xs">
                     {totalHours.toFixed(1)}h
                   </span>
