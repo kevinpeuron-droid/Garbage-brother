@@ -173,7 +173,7 @@ export default function ReportModal({
                           {getEq(session.equipmentId)?.label || "Inconnu"}
                         </td>
                         <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">
-                          Principale {session.breakMinutes ? `(Pause ${session.breakMinutes} min)` : ""}
+                          Matin {session.breakMinutes ? `(Pause ${session.breakMinutes} min)` : ""}
                           {session.mission ? ` - ${session.mission}` : ""}
                         </td>
                       </tr>
@@ -186,7 +186,7 @@ export default function ReportModal({
                             {getEq(session.secondaryMission.equipmentId)?.label || "Inconnu"}
                           </td>
                           <td className="p-3 border border-[#E5E0D5] text-[#7A8275] italic">
-                            Annexe
+                            Après-midi
                             {session.secondaryMission.mission ? ` - ${session.secondaryMission.mission}` : ""}
                           </td>
                         </tr>
@@ -227,15 +227,11 @@ export default function ReportModal({
                             {session.startTime} - {session.endTime}
                           </td>
                           <td className="p-3 border border-[#E5E0D5] text-[#3C413A] font-medium">
-                            {(calculateDurationHours(
+                            {calculateDurationHours(
                               session.startTime,
                               session.endTime,
                               session.breakMinutes
-                            ) - (session.secondaryMission ? calculateDurationHours(
-                              session.secondaryMission.startTime,
-                              session.secondaryMission.endTime,
-                              0
-                            ) : 0)).toFixed(1)}
+                            ).toFixed(1)}
                             h
                           </td>
                           <td className="p-3 border border-[#E5E0D5] text-[#3C413A]">

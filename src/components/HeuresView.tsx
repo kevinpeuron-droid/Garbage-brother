@@ -161,59 +161,104 @@ function EquipmentsTab({ equipments, onUpdateEquipments }: { equipments: Equipme
 }
 
 function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: EquipmentConfig[], sessions: WorkSession[], onUpdateSessions: (s: WorkSession[]) => void }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  
+  // Matin
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [breakMinutes, setBreakMinutes] = useState("0");
-  const [equipmentId, setEquipmentId] = useState(equipments[0]?.id || "");
+  const [equipmentId, setEquipmentId] = useState("");
   const [mission, setMission] = useState("");
   
-  const [hasSecondary, setHasSecondary] = useState(false);
-  const [secEquipmentId, setSecEquipmentId] = useState("");
+  // Après-midi
+  const [hasAfternoon, setHasAfternoon] = useState(false);
+  const [sameAsMorning, setSameAsMorning] = useState(true);
   const [secStartTime, setSecStartTime] = useState("");
   const [secEndTime, setSecEndTime] = useState("");
+  const [secEquipmentId, setSecEquipmentId] = useState("");
   const [secMission, setSecMission] = useState("");
+
+  const resetForm = () => {
+    setEditingId(null);
+    setDate(new Date().toISOString().split("T")[0]);
+    setStartTime("");
+    setEndTime("");
+    setEquipmentId(equipments[0]?.id || "");
+    setMission("");
+    setHasAfternoon(false);
+    setSameAsMorning(true);
+    setSecStartTime("");
+    setSecEndTime("");
+    setSecEquipmentId("");
+    setSecMission("");
+  };
+
+  const handleEdit = (session: WorkSession) => {
+    setEditingId(session.id);
+    setDate(session.date);
+    setStartTime(session.startTime);
+    setEndTime(session.endTime);
+    setEquipmentId(session.equipmentId);
+    setMission(session.mission || "");
+
+    if (session.secondaryMission) {
+      setHasAfternoon(true);
+      setSecStartTime(session.secondaryMission.startTime);
+      setSecEndTime(session.secondaryMission.endTime);
+      
+      const isSame = session.secondaryMission.equipmentId === session.equipmentId && session.secondaryMission.mission === session.mission;
+      setSameAsMorning(isSame);
+      setSecEquipmentId(session.secondaryMission.equipmentId);
+      setSecMission(session.secondaryMission.mission || "");
+    } else {
+      setHasAfternoon(false);
+      setSameAsMorning(true);
+      setSecStartTime("");
+      setSecEndTime("");
+      setSecEquipmentId("");
+      setSecMission("");
+    }
+    
+    // scroll to top smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!startTime || !endTime || !equipmentId) return;
 
     const newSession: WorkSession = {
-      id: `session_${Date.now()}`,
+      id: editingId || `session_${Date.now()}`,
       date,
       startTime,
       endTime,
-      breakMinutes: parseInt(breakMinutes) || 0,
       equipmentId,
       mission,
     };
 
-    if (hasSecondary && secEquipmentId && secStartTime && secEndTime) {
+    if (hasAfternoon && secStartTime && secEndTime) {
       newSession.secondaryMission = {
-        equipmentId: secEquipmentId,
+        equipmentId: sameAsMorning ? equipmentId : secEquipmentId,
         startTime: secStartTime,
         endTime: secEndTime,
-        mission: secMission,
+        mission: sameAsMorning ? mission : secMission,
       };
     }
 
-    onUpdateSessions([newSession, ...sessions]);
+    if (editingId) {
+      onUpdateSessions(sessions.map(s => s.id === editingId ? newSession : s));
+    } else {
+      onUpdateSessions([newSession, ...sessions]);
+    }
 
-    // reset
-    setStartTime("");
-    setEndTime("");
-    setBreakMinutes("0");
-    setMission("");
-    setHasSecondary(false);
-    setSecEquipmentId("");
-    setSecStartTime("");
-    setSecEndTime("");
-    setSecMission("");
+    resetForm();
   };
 
   const handleDelete = (id: string) => {
     if (window.confirm("Supprimer ce pointage ?")) {
       onUpdateSessions(sessions.filter(s => s.id !== id));
+      if (editingId === id) resetForm();
     }
   };
 
@@ -221,80 +266,103 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
 
   return (
     <div className="space-y-8">
-      <form onSubmit={handleAdd} className="bg-[#F4F1EA] p-4 md:p-6 rounded-xl border border-[#D9D3C7] space-y-4">
-        <h3 className="font-bold text-sm text-[#3C413A] mb-4">Nouveau pointage</h3>
+      <form onSubmit={handleAdd} className="bg-[#F4F1EA] p-4 md:p-6 rounded-xl border border-[#D9D3C7] space-y-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-lg text-[#3C413A]">
+            {editingId ? "Modifier le pointage" : "Nouveau pointage"}
+          </h3>
+          {editingId && (
+            <button type="button" onClick={resetForm} className="text-sm font-bold text-[#7A8275] hover:text-[#3C413A]">
+              Annuler
+            </button>
+          )}
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-[#D9D3C7] pb-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[#7A8275]">Date</label>
-            <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#7A8275]">Heure de début</label>
-            <input type="time" required value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#7A8275]">Heure de fin</label>
-            <input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#7A8275]">Pause (minutes)</label>
-            <input type="number" value={breakMinutes} onChange={e => setBreakMinutes(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" min="0" />
+            <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white" />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#7A8275]">Engin principal / Mode de travail</label>
-            <select required value={equipmentId} onChange={e => setEquipmentId(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm">
-              <option value="" disabled>Sélectionner un engin</option>
-              {equipments.map(eq => (
-                <option key={eq.id} value={eq.id}>{eq.label} ({eq.hourlyRate}€/h)</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#7A8275]">Détail de la mission (optionnel)</label>
-            <input type="text" value={mission} onChange={e => setMission(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" placeholder="ex: Ramassage zone VIP" />
+        {/* MATIN */}
+        <div className="space-y-4">
+          <h4 className="font-bold text-[#6B8E63]">Matin</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[#7A8275]">Heure de début</label>
+              <input type="time" required value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[#7A8275]">Heure de fin</label>
+              <input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[#7A8275]">Engin principal / Mode de travail</label>
+              <select required value={equipmentId} onChange={e => setEquipmentId(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white">
+                <option value="" disabled>Sélectionner un engin</option>
+                {equipments.map(eq => (
+                  <option key={eq.id} value={eq.id}>{eq.label} ({eq.hourlyRate}€/h)</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[#7A8275]">Détail de la mission (optionnel)</label>
+              <input type="text" value={mission} onChange={e => setMission(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white" placeholder="ex: Ramassage zone VIP" />
+            </div>
           </div>
         </div>
 
+        {/* APRES MIDI */}
         <div className="pt-4 border-t border-[#D9D3C7]">
-          <label className="flex items-center gap-2 text-sm font-bold text-[#3C413A] cursor-pointer">
-            <input type="checkbox" checked={hasSecondary} onChange={e => setHasSecondary(e.target.checked)} className="rounded text-[#D4A373]" />
-            Mission annexe (changement d'engin)
+          <label className="flex items-center gap-2 text-sm font-bold text-[#3C413A] cursor-pointer mb-4">
+            <input type="checkbox" checked={hasAfternoon} onChange={e => setHasAfternoon(e.target.checked)} className="rounded text-[#D4A373] w-4 h-4" />
+            Ajouter un pointage l'après-midi
           </label>
           
-          {hasSecondary && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-4 rounded border border-[#D9D3C7]">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#7A8275]">Heure de début (annexe)</label>
-                <input type="time" required value={secStartTime} onChange={e => setSecStartTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
+          {hasAfternoon && (
+            <div className="bg-white p-4 rounded-lg border border-[#D9D3C7] space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[#7A8275]">Heure de début (après-midi)</label>
+                  <input type="time" required value={secStartTime} onChange={e => setSecStartTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[#7A8275]">Heure de fin (après-midi)</label>
+                  <input type="time" required value={secEndTime} onChange={e => setSecEndTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#7A8275]">Heure de fin (annexe)</label>
-                <input type="time" required value={secEndTime} onChange={e => setSecEndTime(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#7A8275]">Engin annexe</label>
-                <select required value={secEquipmentId} onChange={e => setSecEquipmentId(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm">
-                  <option value="" disabled>Sélectionner un engin</option>
-                  {equipments.map(eq => (
-                    <option key={eq.id} value={eq.id}>{eq.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#7A8275]">Détail mission annexe</label>
-                <input type="text" value={secMission} onChange={e => setSecMission(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm" placeholder="ex: Rangement" />
-              </div>
+
+              <label className="flex items-center gap-2 text-sm font-bold text-[#3C413A] cursor-pointer">
+                <input type="checkbox" checked={sameAsMorning} onChange={e => setSameAsMorning(e.target.checked)} className="rounded text-[#D4A373] w-4 h-4" />
+                Même mission et même engin que le matin
+              </label>
+
+              {!sameAsMorning && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[#7A8275]">Engin après-midi</label>
+                    <select required value={secEquipmentId} onChange={e => setSecEquipmentId(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white">
+                      <option value="" disabled>Sélectionner un engin</option>
+                      {equipments.map(eq => (
+                        <option key={eq.id} value={eq.id}>{eq.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[#7A8275]">Détail mission après-midi</label>
+                    <input type="text" value={secMission} onChange={e => setSecMission(e.target.value)} className="w-full border border-[#D9D3C7] rounded px-3 py-2 text-sm bg-white" placeholder="ex: Rangement" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         <div className="pt-4 flex justify-end">
           <button type="submit" className="bg-[#D4A373] text-white px-6 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-[#c39162] transition-colors flex items-center gap-2">
-            <Plus size={16} /> Enregistrer le pointage
+            {editingId ? <Save size={16} /> : <Plus size={16} />}
+            {editingId ? "Enregistrer les modifications" : "Enregistrer le pointage"}
           </button>
         </div>
       </form>
@@ -309,8 +377,7 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
               <div className="flex-1 space-y-1">
                 <div className="font-bold text-[#3C413A]">{session.date}</div>
                 <div className="text-sm text-[#7A8275]">
-                  <span className="font-medium text-[#3C413A]">{session.startTime} - {session.endTime}</span>
-                  {session.breakMinutes ? ` (Pause: ${session.breakMinutes} min)` : ""}
+                  <span className="font-medium text-[#3C413A]">Matin: {session.startTime} - {session.endTime}</span>
                 </div>
               </div>
               <div className="flex-1">
@@ -323,16 +390,20 @@ function SessionsTab({ equipments, sessions, onUpdateSessions }: { equipments: E
               </div>
               {session.secondaryMission && (
                 <div className="flex-1 bg-gray-50 p-2 rounded text-xs border border-gray-100">
-                  <div className="font-bold text-[#7A8275] mb-1">Mission annexe</div>
-                  <div>{session.secondaryMission.startTime} - {session.secondaryMission.endTime}</div>
+                  <div className="font-bold text-[#7A8275] mb-1">Après-midi: {session.secondaryMission.startTime} - {session.secondaryMission.endTime}</div>
                   <div className="font-medium">{getEqLabel(session.secondaryMission.equipmentId)}</div>
                   {session.secondaryMission.mission && (
                     <div className="text-[#7A8275] italic mt-1">{session.secondaryMission.mission}</div>
                   )}
                 </div>
               )}
-              <div>
-                <button onClick={() => handleDelete(session.id)} className="text-red-500 hover:bg-red-50 p-2 rounded transition-colors"><Trash2 size={18} /></button>
+              <div className="flex gap-2">
+                <button onClick={() => handleEdit(session)} className="text-[#6B8E63] hover:bg-[#F4F1EA] p-2 rounded transition-colors" title="Modifier">
+                  <Edit2 size={18} />
+                </button>
+                <button onClick={() => handleDelete(session.id)} className="text-red-500 hover:bg-red-50 p-2 rounded transition-colors" title="Supprimer">
+                  <Trash2 size={18} />
+                </button>
               </div>
             </div>
           ))}
